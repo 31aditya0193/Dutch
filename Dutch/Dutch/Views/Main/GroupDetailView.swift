@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreData
+import CoreTransferable
 import DutchKit
 
 /// Detail screen for a single group: members, expenses, and settlement summary.
@@ -125,6 +126,19 @@ struct GroupDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .animation(.snappy, value: contents.totalSpent)
                 .accessibilityElement(children: .combine)
+
+                // Here rather than in the toolbar, for two reasons. The toolbar
+                // already owns a share glyph — that one invites people into the
+                // group, and hanging a second, different share off the same
+                // symbol makes both a coin flip. And this section is exactly
+                // the thing being shared: the total, and what it resolves to.
+                ShareLink(
+                    item: SharedSummary(summary: contents.summary),
+                    preview: SharePreview(group.name ?? "Group")
+                ) {
+                    Label("Share Summary", systemImage: "doc.plaintext")
+                }
+                .accessibilityHint("Copies who owes whom, the total and the expense list as text")
             }
         }
     }
@@ -430,12 +444,20 @@ private struct Contents {
     /// the settlement produced back to the `Person` the store needs to write.
     let person: [UUID: Person]
 
+    /// The same numbers as a snapshot free of managed objects, ready to be
+    /// rendered as shareable text. Built here because everything it needs is
+    /// already in hand — it costs one more pass over `expenses`, not another
+    /// settlement.
+    let summary: GroupSummary
+
     init(group: ExpenseGroup) {
         let roster = (group.members as? Set<Person>)?
             .sorted { ($0.name ?? "") < ($1.name ?? "") } ?? []
-        members = roster
-        expenses = (group.expenses as? Set<Expense>)?
+        let log = (group.expenses as? Set<Expense>)?
             .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) } ?? []
+
+        members = roster
+        expenses = log
 
         person = Dictionary(
             roster.compactMap { member in member.id.map { ($0, member) } },
@@ -447,6 +469,30 @@ private struct Contents {
         transfers = settlement.transfers
         totalSpent = settlement.totalSpent
         spendingCount = settlement.spendingCount
+
+        summary = group.summary(from: settlement, expenses: log, memberCount: roster.count)
+    }
+}
+
+// MARK: - Shared Summary
+
+/// The group summary as something `ShareLink` can hand to the share sheet.
+///
+/// A `Transferable` wrapper rather than the finished `String`, because
+/// `ShareLink` takes its item eagerly: passing the text itself would build the
+/// whole message — a line per expense, formatted — on every redraw of this
+/// screen, for a button most people tap once a trip. `ProxyRepresentation`
+/// defers that to the tap.
+///
+/// Deferring is only safe because `GroupSummary` is a value snapshot with no
+/// managed objects in it, so the closure can run whenever and on whatever actor
+/// the share sheet chooses. Capturing anything Core Data owns here would be a
+/// crash waiting for a slow share sheet.
+private struct SharedSummary: Transferable {
+    let summary: GroupSummary
+
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation { $0.summary.text() }
     }
 }
 

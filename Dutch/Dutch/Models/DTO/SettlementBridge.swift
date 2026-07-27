@@ -225,6 +225,37 @@ extension Money {
     }
 }
 
+// MARK: - Sharing
+
+extension ExpenseGroup {
+    /// A shareable snapshot of where the group stands.
+    ///
+    /// Takes the settlement and the sorted expenses the caller already holds
+    /// rather than recomputing them. `settlement()` is a full walk of the
+    /// group, and the only screen that offers to share has done it once this
+    /// render already — see `GroupDetailView.Contents`.
+    ///
+    /// What comes back contains no managed objects, only DutchKit values. That
+    /// is what makes it safe to hand to `ShareLink` and render into text later,
+    /// on whatever actor the share sheet gets around to calling on, instead of
+    /// rebuilding the whole message on every redraw of the screen behind it.
+    func summary(
+        from settlement: Settlement,
+        expenses: [Expense],
+        memberCount: Int
+    ) -> GroupSummary {
+        GroupSummary(
+            name: name ?? "",
+            currencyCode: currency,
+            totalSpent: settlement.totalSpent,
+            spendingCount: settlement.spendingCount,
+            memberCount: memberCount,
+            transfers: settlement.transfers,
+            entries: expenses.compactMap(\.summaryLine)
+        )
+    }
+}
+
 extension Expense {
     /// What was handed over at the till, when that wasn't the group's currency.
     ///
@@ -241,6 +272,32 @@ extension Expense {
     var foreignAmount: ForeignAmount? {
         guard let code = originalCurrencyCode else { return nil }
         return ForeignAmount(amount: originalAmount, currencyCode: code, rate: exchangeRate)
+    }
+
+    /// This expense as one line of a shared summary.
+    ///
+    /// `nil` when the record cannot describe itself — the same incompleteness
+    /// that keeps a half-synced expense out of `entry`. A line reading "paid by
+    /// ?" is worse than no line at all here: the whole point of pasting the log
+    /// into the group chat is that the others can check it against what they
+    /// remember paying.
+    var summaryLine: GroupSummary.Entry? {
+        guard let payer = paidBy?.name else { return nil }
+
+        // A payment with no recipient would fall through the `paidBackTo`
+        // discriminator and render as an ordinary purchase — of nothing, by
+        // someone, for the amount that actually settled a debt.
+        let recipient = reimbursementRecipient?.name
+        if isReimbursement, recipient == nil { return nil }
+
+        return GroupSummary.Entry(
+            title: title ?? "",
+            amount: Money(amount: amount),
+            payer: payer,
+            date: date,
+            foreign: foreignAmount,
+            paidBackTo: recipient
+        )
     }
 
     /// Who a payment went to, for the row that renders "Bob paid Anna".

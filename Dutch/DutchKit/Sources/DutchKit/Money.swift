@@ -113,10 +113,16 @@ public struct Money: Hashable, Sendable, Comparable, AdditiveArithmetic {
 
 extension Money {
     /// Formats using the given currency code, defaulting to the user's locale.
-    public func formatted(currencyCode: String? = nil) -> String {
+    ///
+    /// The locale decides how the number is written — separators, symbol
+    /// placement — and never which currency it is in. Those are separate
+    /// questions: a group settling in euros reads as euros on a phone set to
+    /// Polish, with Polish grouping. `locale` is a parameter only so that
+    /// output can be pinned in a test; call sites in the app leave it alone.
+    public func formatted(currencyCode: String? = nil, locale: Locale = .current) -> String {
         let code = currencyCode
-            ?? Locale.current.currency?.identifier
+            ?? locale.currency?.identifier
             ?? "USD"
-        return amount.formatted(.currency(code: code))
+        return amount.formatted(.currency(code: code).locale(locale))
     }
 }

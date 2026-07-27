@@ -58,7 +58,7 @@ public struct ForeignAmount: Hashable, Sendable {
     }
 
     /// Formatted in the currency it was paid in — `198,50 zł`, `5000 Ft`.
-    public func formatted() -> String {
-        amount.formatted(.currency(code: currencyCode))
+    public func formatted(locale: Locale = .current) -> String {
+        amount.formatted(.currency(code: currencyCode).locale(locale))
     }
 }
