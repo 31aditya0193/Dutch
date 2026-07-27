@@ -68,12 +68,21 @@ struct GroupStore {
         try context.save()
     }
 
+    /// Records an expense, optionally noting that it was paid in another
+    /// currency.
+    ///
+    /// `foreign` is provenance only, and the conversion is not done here: pass
+    /// `foreign.converted` as `amount` so the rounding happens once, at the
+    /// point the user confirmed the figure they saw. `amount` is always in the
+    /// group's own currency, which is what keeps the settlement single-currency
+    /// and `SettlementBridge` unaware that any of this exists.
     func addExpense(
         title: String,
         amount: Money,
         paidBy payer: Person,
         splitAmong participants: Set<Person>,
-        in group: ExpenseGroup
+        in group: ExpenseGroup,
+        paidIn foreign: ForeignAmount? = nil
     ) throws {
         let expense = Expense(context: context)
         expense.id = UUID()
@@ -83,6 +92,12 @@ struct GroupStore {
         expense.paidBy = payer
         expense.group = group
         expense.splitAmong = NSSet(set: participants)
+
+        if let foreign {
+            expense.originalAmount = foreign.amount
+            expense.originalCurrencyCode = foreign.currencyCode
+            expense.exchangeRate = foreign.rate
+        }
 
         try context.save()
     }

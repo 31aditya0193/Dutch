@@ -453,9 +453,21 @@ private struct ExpenseRow: View {
 
             Spacer(minLength: 12)
 
-            Text(Money(amount: expense.amount).formatted(currencyCode: currencyCode))
-                .font(.callout)
-                .monospacedDigit()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(Money(amount: expense.amount).formatted(currencyCode: currencyCode))
+                    .font(.callout)
+                    .monospacedDigit()
+
+                // What was actually handed over, for expenses paid abroad. The
+                // group's own figure stays the prominent one — it is the number
+                // the balances are built from — with this as its receipt.
+                if let foreign = expense.foreignAmount {
+                    Text(foreign.formatted())
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)

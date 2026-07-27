@@ -130,3 +130,22 @@ extension Money {
         formatted(currencyCode: group.currency)
     }
 }
+
+extension Expense {
+    /// What was handed over at the till, when that wasn't the group's currency.
+    ///
+    /// Purely provenance for display. `amount` was converted once when the
+    /// expense was saved and is the only figure the settlement ever reads —
+    /// nothing here is used to recompute it, which is what stops a group's
+    /// balances from drifting as rates move. See `ForeignAmount`.
+    ///
+    /// `originalCurrencyCode` is the discriminator: the two `Double`s are
+    /// scalar attributes that read back as `0` when absent, so they cannot say
+    /// on their own whether an expense was ever converted. Records written
+    /// before this existed, and those paid in the group's own currency, return
+    /// `nil` here and render exactly as they always did.
+    var foreignAmount: ForeignAmount? {
+        guard let code = originalCurrencyCode else { return nil }
+        return ForeignAmount(amount: originalAmount, currencyCode: code, rate: exchangeRate)
+    }
+}
