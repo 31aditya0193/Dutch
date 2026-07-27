@@ -17,42 +17,43 @@ any of those. Watch the asset catalog, not the code.
 
 ## Shipped
 
+**The base:**
+
 - Groups, members, expenses, equal splits
 - Settlement (balances + a short list of payments that clears them)
 - iCloud sync and group sharing by QR code
 - Expenses entered in a foreign currency, converted once at entry
 
-## In progress
+**Added since:** the four below, built together because two of them shared a
+single Core Data version bump and doing that migration twice would have been
+worse than doing it once. The reasoning is kept here because each one had a
+non-obvious decision behind it.
 
-Items 1–4 below. All four are being built together because 2 and 3 share a single
-Core Data version bump, and doing that migration twice would be worse than doing
-it once.
+### Edit an expense
 
-### 1. Edit an expense
-
-The only correction available today is swipe-to-delete and re-enter, which on a
-shared group means the other person watches an expense vanish and reappear over
-CloudKit. The form already holds every field; it needs to accept an existing
-expense and update rather than insert.
+The only correction used to be swipe-to-delete and re-enter, which on a shared
+group means the other person watches an expense vanish and reappear over
+CloudKit — with a window in between where the balances are wrong. One form now
+adds and edits, rewriting one record in place and leaving its date alone.
 
 *Cost: zero bytes. No model change.*
 
-### 2. Record a settlement
+### Record a settlement
 
-Nothing lets someone say "I paid Anna the 40 back", so a long-running group only
-ever accumulates.
+Nothing let someone say "I paid Anna the 40 back", so a long-running group only
+ever accumulated.
 
-The useful property: a payment is already expressible in the existing maths. A
+The useful property: a payment was already expressible in the existing maths. A
 pays B is an expense **paid by A, split among B alone** — which nets A up and B
-down by exactly the amount, and settles them. `SettlementCalculator` needs no
+down by exactly the amount, and settles them. `SettlementCalculator` needed no
 change at all. The only new state is a flag so the row renders as a payment
 rather than an expense, and so it stays out of Total Spent.
 
 *Cost: one optional Bool. Model v3.*
 
-### 3. Unequal splits
+### Uneven splits, by percentage
 
-Equal-only is the ceiling on real use. Two cases from one real trip:
+Equal-only was the ceiling on real use. Two cases from one real trip:
 
 - a train ticket where one of six people has a 51% student discount;
 - a hotel for six — two couples in two rooms, two people in singles — where all
@@ -75,18 +76,18 @@ Stored as an integer weight overlay keyed by person, with `splitAmong` still
 authoritative for *who* is in the split. Absent weights mean an even split, so
 every existing expense keeps reading exactly as it did.
 
-*Cost: one optional String. Model v3, shared with item 2. Logic lives in DutchKit
-and is testable without a simulator.*
+*Cost: one optional String. Model v3, shared with the settlement flag. Logic
+lives in DutchKit and is testable without a simulator.*
 
-### 4. Who am I in this group
+### Who am I in this group
 
-There's no notion of which member is the person holding the phone, so every
-balance is third-person. "You owe 120" is a better sentence than "Marek owes 120",
-and it's a prerequisite for the widget.
+There was no notion of which member is the person holding the phone, so every
+balance read in the third person. "You owe 120" is a better sentence than "Marek
+owes 120", and it is a prerequisite for the widget.
 
-Belongs in `ExpenseDefaults` alongside `lastPayer` — same reasoning: it's a fact
-about the device, not about the group, and syncing it would overwrite everyone
-else's answer.
+Lives in `ExpenseDefaults` alongside `lastPayer` — same reasoning: it is a fact
+about the device, not about the group, and syncing it would tell everyone else in
+the group that they are Marek too.
 
 *Cost: a `UserDefaults` key. No model change.*
 
@@ -94,14 +95,32 @@ else's answer.
 
 ## Next
 
-### 5. App Intents / Shortcuts
+### 5. Duplicate an expense
+
+Buying rounds is the case. Four people take turns at the bar, and each round is
+the same title, the same amount and the same split — everything except who paid.
+Today that is four full trips through the form, and the payer prefill actively
+works against you: `ExpenseDefaults.lastPayer` suggests whoever paid last, which
+in a round is precisely the person who is *not* paying now.
+
+Long-press an expense → **Duplicate** → the form opens with everything carried
+over and only the payer left to change. Four rounds become one full entry and
+three pairs of taps. It also catches the everyday repeat on a trip: the same
+coffee, the same parking, the same ticket.
+
+The fix is duplication rather than a cleverer prefill, deliberately. Guessing who
+pays next is fortune-telling; copying what the user already entered is not.
+
+*Cost: zero bytes. `GroupStore.addExpense` already takes every field this needs.*
+
+### 6. App Intents / Shortcuts
 
 "Add 60 to green-moon-tea" from Siri or the Action button, no app launch. The
 highest speed-per-kilobyte item on the list, and a natural fit for an app whose
 whole point is entering a number in five seconds. `AppIntents` is system-provided;
 only the intent definitions land in the binary.
 
-### 6. Member avatars from SF Symbols
+### 7. Member avatars from SF Symbols
 
 A glyph per member, chosen from a curated set of SF Symbols. Because the symbols
 ship with the OS, a full set of avatars costs one optional String on `Person` and
@@ -113,42 +132,68 @@ the deployment target (iOS 17), since a name that doesn't resolve renders as
 nothing at all; and the symbol has to stay decorative — the accessibility label
 is the member's name, not the glyph.
 
-### 7. Home screen widget
+### 8. Home screen widget
 
 "You owe €120 · green-moon-tea". A WidgetKit extension reading the same store.
-Depends on item 4. A couple hundred KB for the extension binary.
+Depends on knowing who you are, above. A couple hundred KB for the extension binary.
 
-### 8. Share a summary
+### 9. Share a summary
 
 `ShareLink` over a generated text block: who owes whom, the total, the expense
 list. Pure string building, zero framework cost, and it matches how people
 actually settle — pasted into the group chat.
 
-### 9. Categories
+### 10. Categories
 
-An optional String on `Expense` holding an SF Symbol name, same trick as item 6.
+An optional String on `Expense` holding an SF Symbol name, same trick as the avatars above.
 Groups the expense list and costs nothing in the bundle.
 
-### 10. Archive a group
+### 11. Archive a group
 
 Trips end; the list never shrinks. One optional Date and a filtered
 `@FetchRequest`.
 
-### 11. Exact amounts in a split
+### 12. Exact amounts in a split
 
-The one thing percentages can't express: "Ania pays exactly 23.50, divide the
-rest between the rest of us." It comes up with itemised restaurant bills, where
-the receipt already lists the numbers and turning them into percentages is the
-arithmetic this app exists to remove.
+Not another way of dividing a bill — the same division, entered differently.
+Percentages ask *in what proportion*; this asks *how much exactly*, because
+sometimes the receipt already says.
 
-Deliberately separate from item 3 rather than folded into the same control. A
-percentage and an amount answer different questions, and one field trying to be
-both — is `50` half a share or fifty złoty? — would be worse than either. It
-also breaks the invariant that the parts sum to the whole: exact amounts need a
-running remainder shown on screen and a rule for what happens when they overrun
-the total.
+**The one situation it is for:** one person pays the whole bill, and the bill is
+itemised. Three people, one card, 127.00 paid:
 
-### 12. Spotlight indexing
+| | on the receipt |
+|---|---|
+| Ania — salad | 23.50 |
+| Marek — steak | 68.00 |
+| Kuba — pasta | 35.50 |
+
+The numbers are already known. Getting there with percentages means computing
+18.5% / 53.5% / 28% first, which is exactly the arithmetic this app exists to
+delete. Today the workaround is three separate expenses, each paid by the card
+holder and split among one person: it works and it is correct, but it is three
+trips through the form and the group then reads "3 expenses" for one dinner.
+
+**Where it does *not* apply:** if everybody paid for their own meal, nothing
+needs entering at all. One person covering someone else — Marcin paying for
+Kasia because she had no cash — is already an ordinary expense paid by Marcin
+and split among Kasia alone. Rounds at the bar are one even-split expense each.
+None of that needs this feature; see item 5 for the friction that one actually
+has.
+
+**Mixed is the real shape of it.** "Ania pays her 23.50, the rest of us split
+what's left" means some rows are fixed and the remainder divides between the
+others by percentage. So a row is either an amount or a percentage, the fixed
+ones come off the top, and what remains is divided among the rest.
+
+That is what makes it the hardest control in the app, and why it stays separate
+from the percentage menu rather than sharing a field with it — `50` cannot mean
+half a share on one row and fifty złoty on the next. It also breaks the one
+invariant everything else here relies on, that the parts reconstruct the whole:
+this needs a running remainder on screen at all times, and a decided answer for
+what happens when the fixed amounts overshoot the total.
+
+### 13. Spotlight indexing
 
 Groups and expenses searchable from the home screen via `CoreSpotlight`. System
 framework, small integration, and it makes a five-second app reachable in two.

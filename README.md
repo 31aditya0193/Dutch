@@ -11,10 +11,17 @@ The app runs **without a central server** and without user accounts. It leans on
 - ✅ **No Accounts Required** – no sign-up, no passwords.
 - 🔐 **Simple Group Joining** – every group gets a human-readable word sequence (e.g. `green-moon-tea`) and a scannable QR code.
 - ☁️ **iCloud Synchronization** – changes propagate to all members via `NSPersistentCloudKitContainer` and silent push notifications.
-- 📊 **Automatic Settlements** – balances are recomputed live, and the app shows the minimal set of payments that squares everyone up.
+- 📊 **Automatic Settlements** – balances are recomputed live, and the app shows a short set of payments that squares everyone up.
+- ✅ **Settling Up** – mark a suggested payment as made and it is logged; the debt clears and the total spent is left alone, because paying someone back buys nothing.
+- ⚖️ **Uneven Splits** – set what anyone pays as a percentage of a full share: 49% for a fare with 51% off, 50% each for a couple sharing one hotel room. Every split still reconciles to the cent.
+- ✏️ **Editable Expenses** – correct an expense in place instead of deleting and re-entering it, so the other members see a modification rather than a disappearance.
+- 🌍 **Foreign Currencies** – enter what you actually handed over abroad; it is converted once, at the rate you saw, and stored in the group's currency so nobody's balance drifts as rates move.
+- 🙋 **Second Person** – tell the app which member you are and it says "you owe" instead of naming you in the third person. Kept on the device, never synced.
 - 💰 **Exact to the Cent** – money is held as integer cents, so a three-way split never loses a penny to floating point.
 - 📴 **Fully Offline Capable** – everything is written to Core Data locally and syncs when the device reconnects.
 - 📷 **QR Code Scanner** – built-in camera support for joining an existing group.
+
+Where the app is going next, and what it deliberately won't do, is in [ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -48,8 +55,9 @@ A local Swift package with no UI, no persistence, and no CloudKit. Just Foundati
 
 | File                       | Responsibility                                                                                    |
 | :------------------------- | :------------------------------------------------------------------------------------------------ |
-| `Money.swift`              | A monetary amount as whole cents (`Int`), with a split that always reconciles back to the total.   |
-| `SettlementCalculator.swift` | Balances per person, and the transfers that settle a group in at most *n − 1* payments.          |
+| `Money.swift`              | A monetary amount as whole cents (`Int`), with even and weighted splits that always reconcile back to the total. |
+| `SettlementCalculator.swift` | Balances per person, how one expense divides between its sharers, and the transfers that settle a group in at most *n − 1* payments. |
+| `ForeignAmount.swift`      | An amount as it was paid abroad, plus the rate it was captured at — converted once, never re-read. |
 | `WordGenerator.swift`      | Human-readable sequences such as `coral-lotus-pearl`.                                              |
 
 Because it touches nothing platform-specific, its tests run from the command line in milliseconds — no simulator, no iCloud account. That is also why the package declares a macOS platform it never actually ships to.
@@ -101,17 +109,18 @@ Dutch/                              # repository root
     │   ├── Models/
     │   │   ├── CoreData/
     │   │   │   ├── PersistenceController.swift  # private + shared CloudKit stores
-    │   │   │   └── Dutch.xcdatamodeld           # ExpenseGroup, Person, Expense
+    │   │   │   └── Dutch.xcdatamodeld           # ExpenseGroup, Person, Expense (v3)
     │   │   └── DTO/
     │   │       └── SettlementBridge.swift       # Core Data ↔ DutchKit
     │   ├── Views/
     │   │   ├── Main/                       # ContentView, GroupListView, GroupDetailView
-    │   │   ├── Expenses/                   # AddExpenseView
+    │   │   ├── Expenses/                   # ExpenseFormView (adds and edits)
     │   │   └── Sharing/                    # ShareGroupView, JoinGroupView,
     │   │                                   # QRScannerView, CloudSharingSheet
     │   ├── Services/
     │   │   ├── CloudSharingService.swift   # creating and accepting CKShares
     │   │   ├── GroupStore.swift            # all write operations
+    │   │   ├── ExpenseDefaults.swift       # per-group state local to this device
     │   │   └── QRCodeGenerator.swift
     │   └── Utils/Extensions/
     ├── DutchKit/                   # local Swift package (pure logic)
