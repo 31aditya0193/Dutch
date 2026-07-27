@@ -22,6 +22,19 @@ private enum Fixture {
             sharedBetween: Set(sharers.map(\.id))
         )
     }
+
+    static func expense(
+        _ amount: Int,
+        paidBy payer: Participant,
+        shares: [(Participant, Int)]
+    ) -> ExpenseEntry {
+        ExpenseEntry(
+            id: UUID(),
+            amount: Money(cents: amount),
+            payer: payer.id,
+            shares: Dictionary(uniqueKeysWithValues: shares.map { ($0.0.id, $0.1) })
+        )
+    }
 }
 
 private func amount(
@@ -145,6 +158,167 @@ struct SettlementBalanceTests {
         #expect(balances.reduce(Money.zero) { $0 + $1.amount } == .zero)
         // 1000 / 3 = 334 + 333 + 333
         #expect(amount(for: Fixture.alice, in: balances) == Money(cents: 1000 - 334))
+    }
+}
+
+// MARK: - Weighted splits
+
+@Suite("Weighted splits")
+struct WeightedSplitTests {
+
+    /// The couple sharing a room against the person in a single.
+    @Test("Shares divide an expense unevenly")
+    func weightedSplit() {
+        let balances = SettlementCalculator.balances(
+            for: [Fixture.expense(9000, paidBy: Fixture.alice, shares: [
+                (Fixture.alice, 2), (Fixture.bob, 1),
+            ])],
+            roster: [Fixture.alice, Fixture.bob]
+        )
+
+        // Alice owes two thirds of her own 90.00 bill, so she is owed the third
+        // that is Bob's.
+        #expect(amount(for: Fixture.alice, in: balances) == Money(cents: 3000))
+        #expect(amount(for: Fixture.bob, in: balances) == Money(cents: -3000))
+    }
+
+    @Test("Weights are ratios, not absolute amounts")
+    func weightsAreRelative() {
+        let doubled = SettlementCalculator.balances(
+            for: [Fixture.expense(9000, paidBy: Fixture.alice, shares: [
+                (Fixture.alice, 4), (Fixture.bob, 2),
+            ])],
+            roster: [Fixture.alice, Fixture.bob]
+        )
+
+        #expect(amount(for: Fixture.alice, in: doubled) == Money(cents: 3000))
+        #expect(amount(for: Fixture.bob, in: doubled) == Money(cents: -3000))
+    }
+
+    @Test("Equal weights are exactly an even split")
+    func equalWeightsMatchEvenSplit() {
+        let roster = [Fixture.alice, Fixture.bob, Fixture.carol]
+        let even = SettlementCalculator.balances(
+            for: [Fixture.expense(1000, paidBy: Fixture.alice, sharedBetween: roster)],
+            roster: roster
+        )
+        let weighted = SettlementCalculator.balances(
+            for: [Fixture.expense(1000, paidBy: Fixture.alice, shares: [
+                (Fixture.alice, 1), (Fixture.bob, 1), (Fixture.carol, 1),
+            ])],
+            roster: roster
+        )
+
+        #expect(even == weighted)
+    }
+
+    @Test("A weighted split that doesn't divide evenly still reconciles")
+    func weightedRemainderReconciles() {
+        let balances = SettlementCalculator.balances(
+            for: [Fixture.expense(1000, paidBy: Fixture.alice, shares: [
+                (Fixture.alice, 1), (Fixture.bob, 1), (Fixture.carol, 1), (Fixture.dave, 4),
+            ])],
+            roster: [Fixture.alice, Fixture.bob, Fixture.carol, Fixture.dave]
+        )
+
+        #expect(balances.reduce(Money.zero) { $0 + $1.amount } == .zero)
+        // 1000 in sevenths: Dave takes four of them.
+        #expect(amount(for: Fixture.dave, in: balances) == Money(cents: -571))
+    }
+
+    /// The form previews each person's slice while the shares are being set,
+    /// and it has to be the same number the balance lands on — a preview that
+    /// is a cent out is worse than no preview at all.
+    @Test("Slices match the balances they produce")
+    func slicesAgreeWithBalances() {
+        let shares = [Fixture.alice.id: 1, Fixture.bob.id: 1, Fixture.carol.id: 5]
+        let amount = Money(cents: 1000)
+
+        let balances = SettlementCalculator.balances(
+            for: [Fixture.expense(1000, paidBy: Fixture.dave, shares: [
+                (Fixture.alice, 1), (Fixture.bob, 1), (Fixture.carol, 5),
+            ])],
+            roster: [Fixture.alice, Fixture.bob, Fixture.carol, Fixture.dave]
+        )
+
+        for (participant, slice) in SettlementCalculator.slices(of: amount, among: shares) {
+            let charged = balances.first { $0.participant.id == participant }?.amount
+            #expect(charged == -slice)
+        }
+    }
+
+    @Test("Slices reconstruct the whole amount")
+    func slicesReconcile() {
+        let slices = SettlementCalculator.slices(
+            of: Money(cents: 1000),
+            among: [Fixture.alice.id: 1, Fixture.bob.id: 1, Fixture.carol.id: 1]
+        )
+
+        #expect(slices.count == 3)
+        #expect(slices.reduce(Money.zero) { $0 + $1.amount } == Money(cents: 1000))
+    }
+
+    /// A zero weight drops the participant from the split rather than charging
+    /// them nothing, so the rest of the bill still divides between the people
+    /// who actually took part.
+    @Test("A zero-weight participant is not in the split at all")
+    func zeroWeightDropsOut() {
+        let balances = SettlementCalculator.balances(
+            for: [Fixture.expense(1000, paidBy: Fixture.alice, shares: [
+                (Fixture.alice, 1), (Fixture.bob, 1), (Fixture.carol, 0),
+            ])],
+            roster: [Fixture.alice, Fixture.bob, Fixture.carol]
+        )
+
+        #expect(amount(for: Fixture.alice, in: balances) == Money(cents: 500))
+        #expect(amount(for: Fixture.bob, in: balances) == Money(cents: -500))
+        #expect(amount(for: Fixture.carol, in: balances) == .zero)
+    }
+}
+
+// MARK: - Reimbursements
+
+/// A payment between two people is not a special case in the calculator: it is
+/// an expense paid by the debtor and shared by the creditor alone. These pin
+/// that down, because the whole design of `GroupStore.recordPayment` rests on
+/// it staying true.
+@Suite("Reimbursements")
+struct ReimbursementTests {
+
+    @Test("Paying what you owe settles the group")
+    func paymentSettlesDebt() {
+        let dinner = Fixture.expense(3000, paidBy: Fixture.alice,
+                                     sharedBetween: [Fixture.alice, Fixture.bob])
+        // Bob owes 15.00 and hands it over: he is the payer, Alice the sharer.
+        let payback = Fixture.expense(1500, paidBy: Fixture.bob, sharedBetween: [Fixture.alice])
+
+        let balances = SettlementCalculator.balances(
+            for: [dinner, payback],
+            roster: [Fixture.alice, Fixture.bob]
+        )
+
+        let allZero = balances.allSatisfy { $0.amount.isZero }
+        #expect(allZero)
+        #expect(SettlementCalculator.transfers(settling: balances).isEmpty)
+    }
+
+    @Test("A partial payment leaves the remainder owing")
+    func partialPayment() {
+        let balances = SettlementCalculator.balances(
+            for: [
+                Fixture.expense(3000, paidBy: Fixture.alice,
+                                sharedBetween: [Fixture.alice, Fixture.bob]),
+                Fixture.expense(500, paidBy: Fixture.bob, sharedBetween: [Fixture.alice]),
+            ],
+            roster: [Fixture.alice, Fixture.bob]
+        )
+
+        #expect(amount(for: Fixture.bob, in: balances) == Money(cents: -1000))
+
+        let transfers = SettlementCalculator.transfers(settling: balances)
+        #expect(transfers.count == 1)
+        #expect(transfers[0].from.id == Fixture.bob.id)
+        #expect(transfers[0].amount == Money(cents: 1000))
     }
 }
 

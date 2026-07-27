@@ -19,23 +19,47 @@ public struct ExpenseEntry: Hashable, Sendable {
     public let amount: Money
     /// The participant who actually paid the bill.
     public let payer: Participant.ID
-    /// Everyone the cost is divided between.
+    /// How the cost divides, as a weight per participant.
+    ///
+    /// A weight of `1` each is an even split; `[alice: 2, bob: 1]` gives Alice
+    /// two thirds. Weights are relative, so `[2, 2]` and `[1, 1]` mean the same
+    /// thing — what matters is the ratio between them.
     ///
     /// Include the payer here when they also consumed part of the expense.
     /// Leave them out when they paid purely on someone else's behalf — the
     /// calculator never adds the payer implicitly.
-    public let sharedBetween: Set<Participant.ID>
+    public let shares: [Participant.ID: Int]
 
+    /// Everyone the cost is divided between, regardless of how much each takes.
+    public var sharedBetween: Set<Participant.ID> { Set(shares.keys) }
+
+    /// An even split between `sharedBetween`.
     public init(
         id: UUID,
         amount: Money,
         payer: Participant.ID,
         sharedBetween: Set<Participant.ID>
     ) {
+        self.init(
+            id: id,
+            amount: amount,
+            payer: payer,
+            shares: Dictionary(uniqueKeysWithValues: sharedBetween.map { ($0, 1) })
+        )
+    }
+
+    /// A weighted split. Participants with a non-positive weight are not in the
+    /// split at all — see `Money.split(among:)`.
+    public init(
+        id: UUID,
+        amount: Money,
+        payer: Participant.ID,
+        shares: [Participant.ID: Int]
+    ) {
         self.id = id
         self.amount = amount
         self.payer = payer
-        self.sharedBetween = sharedBetween
+        self.shares = shares.filter { $0.value > 0 }
     }
 }
 
@@ -101,19 +125,18 @@ public enum SettlementCalculator {
         }
 
         for expense in expenses {
-            // Sorting makes the remainder distribution deterministic, so the
-            // same inputs always produce the same cent-level result.
-            let sharers = expense.sharedBetween
-                .filter { known[$0] != nil }
-                .sorted(by: precedes)
+            // Unknown participants are dropped before slicing, so the amount
+            // divides between the members who are actually still in the group
+            // rather than leaving a slice attributed to nobody.
+            let shares = expense.shares.filter { known[$0.key] != nil }
 
-            guard known[expense.payer] != nil, !sharers.isEmpty else { continue }
+            guard known[expense.payer] != nil, !shares.isEmpty else { continue }
 
             // The payer fronted the whole amount.
             net[expense.payer, default: .zero] += expense.amount
 
             // Each sharer owes their slice; slices sum to exactly `amount`.
-            for (sharer, share) in zip(sharers, expense.amount.split(into: sharers.count)) {
+            for (sharer, share) in slices(of: expense.amount, among: shares) {
                 net[sharer, default: .zero] -= share
             }
         }
@@ -127,6 +150,31 @@ public enum SettlementCalculator {
                     ? lhs.participant.name < rhs.participant.name
                     : lhs.amount > rhs.amount
             }
+    }
+
+    /// Divides one expense between its sharers, in weight order.
+    ///
+    /// Public because a screen that offers to weight a split has to be able to
+    /// show what each person will actually be charged, and a second
+    /// implementation of "how an expense divides" would disagree with this one
+    /// by a cent on exactly the splits where the user is looking hardest. The
+    /// preview and the balance come from the same function or they eventually
+    /// contradict each other.
+    ///
+    /// - Returns: Sharer/slice pairs ordered by id, which is what makes the
+    ///   remainder distribution identical on every device. Slices sum to
+    ///   exactly `amount`.
+    public static func slices(
+        of amount: Money,
+        among shares: [Participant.ID: Int]
+    ) -> [(participant: Participant.ID, amount: Money)] {
+        // Sorting makes the remainder distribution deterministic, so the same
+        // inputs always produce the same cent-level result.
+        let sharers = shares.filter { $0.value > 0 }.keys.sorted(by: precedes)
+        let weights = sharers.map { shares[$0] ?? 1 }
+
+        return zip(sharers, amount.split(among: weights))
+            .map { (participant: $0, amount: $1) }
     }
 
     /// Reduces balances to a short list of payments that settles the group.

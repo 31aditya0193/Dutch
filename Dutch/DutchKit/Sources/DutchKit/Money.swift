@@ -50,21 +50,60 @@ public struct Money: Hashable, Sendable, Comparable, AdditiveArithmetic {
 
     // MARK: - Splitting
 
-    /// Divides the amount into `count` shares that sum back to exactly `self`.
+    /// Divides the amount into `count` equal shares that sum back to exactly
+    /// `self`.
     ///
     /// When the amount doesn't divide evenly the leftover minor units are
     /// handed to the earliest shares, so `Money(cents: 100).split(into: 3)`
     /// yields `[34, 33, 33]` rather than three lossy `33.33`s.
     public func split(into count: Int) -> [Money] {
         guard count > 0 else { return [] }
+        return split(among: Array(repeating: 1, count: count))
+    }
 
-        let base = cents / count
-        let remainder = abs(cents % count)
+    /// Divides the amount in proportion to `weights`, summing back to exactly
+    /// `self`.
+    ///
+    /// Shares, not percentages or exact amounts: two people sharing a room to
+    /// one person in a single are `[2, 1]`. Integer weights keep the split
+    /// exact — there is no rounding step where a percentage of a cent has to go
+    /// somewhere — and the guarantee that the parts reconstruct the whole is
+    /// the same one `split(into:)` makes.
+    ///
+    /// Leftover minor units go to the shares with the largest fractional
+    /// remainder, ties broken by position. For equal weights every remainder is
+    /// identical, so this degenerates to exactly the earliest-first behaviour
+    /// of `split(into:)` — the two are one algorithm, and an even split is not
+    /// a special case of the code.
+    ///
+    /// Returns `[]` for an empty list or any non-positive weight: a zero share
+    /// is not a participant who owes nothing, it is someone who does not belong
+    /// in the split at all, and silently pricing them at zero would hide a
+    /// caller's mistake behind a plausible-looking bill.
+    public func split(among weights: [Int]) -> [Money] {
+        guard !weights.isEmpty, weights.allSatisfy({ $0 > 0 }) else { return [] }
+
+        let total = weights.reduce(0, +)
+
+        // Truncating division, so every quotient falls short by its remainder
+        // and the shortfall is redistributed below rather than dropped.
+        let quotients = weights.map { cents * $0 / total }
+        let remainders = weights.map { abs(cents * $0 % total) }
+
+        // Same sign as `cents`, and strictly smaller in magnitude than the
+        // number of shares, so at most one unit is handed to each.
+        var leftover = abs(cents - quotients.reduce(0, +))
         let step = cents < 0 ? -1 : 1
 
-        return (0 ..< count).map { index in
-            Money(cents: base + (index < remainder ? step : 0))
+        var shares = quotients
+        for index in remainders.indices
+            .sorted(by: { remainders[$0] == remainders[$1] ? $0 < $1 : remainders[$0] > remainders[$1] })
+        where leftover > 0 {
+            shares[index] += step
+            leftover -= 1
         }
+
+        return shares.map(Money.init(cents:))
     }
 }
 
