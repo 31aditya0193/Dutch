@@ -60,3 +60,85 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Xcode
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+*.xcbkptlist
+*.xcdebugger
+xcheader/
+
+# Build
+build/
+DerivedData/
+*.build/
+
+# Cache
+*.cache
+*.pch
+
+# User data
+*.xcuserstate
+*.xcusershowsense
+*.xcscheme
+*.xcsettings
+
+# System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+
+# Test output
+*.xctestrunfile
+
+# Local env files
+.env
+.env.*
+
+# Swift Package Manager
+.Package
+.Package.resolved
+
+# Carthage
+Carthage/
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Fastlane
+fastlane/Reports/
+fastlane/test_output/
+
+# Logs
+*.log
+*.trace
+
+# AI
+gemini.md
+.claude
+.xcodebuildmcp
+.agents
+skills-lock.json
+
+# Docs
+docs
+
+# asccli
+.asc
+Tools/upload_screenshots.sh
+Tools/apply_metadata.sh

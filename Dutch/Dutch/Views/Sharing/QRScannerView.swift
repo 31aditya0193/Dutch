@@ -1,0 +1,182 @@
+import AVFoundation
+import AudioToolbox
+import SwiftUI
+
+/// Camera QR scanner.
+///
+/// The session is owned by the view controller and stopped on teardown. The
+/// previous version pinned it to the controller with an associated object,
+/// which left the camera running after the sheet was dismissed.
+struct QRScannerView: UIViewControllerRepresentable {
+    /// Called with the decoded payload. Delivered at most once.
+    let onScanned: (String) -> Void
+    var onError: ((Error) -> Void)?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onScanned: onScanned, onError: onError)
+    }
+
+    func makeUIViewController(context: Context) -> ScannerViewController {
+        let controller = ScannerViewController()
+        controller.coordinator = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: ScannerViewController, context: Context) {}
+
+    static func dismantleUIViewController(
+        _ uiViewController: ScannerViewController,
+        coordinator: Coordinator
+    ) {
+        uiViewController.stop()
+    }
+
+    // MARK: - Coordinator
+
+    final class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
+        private let onScanned: (String) -> Void
+        private let onError: ((Error) -> Void)?
+        /// Guards against the delegate firing repeatedly for the same code
+        /// while the join is still in flight.
+        private var hasDelivered = false
+
+        init(onScanned: @escaping (String) -> Void, onError: ((Error) -> Void)?) {
+            self.onScanned = onScanned
+            self.onError = onError
+        }
+
+        func report(_ error: Error) {
+            onError?(error)
+        }
+
+        func metadataOutput(
+            _ output: AVCaptureMetadataOutput,
+            didOutput metadataObjects: [AVMetadataObject],
+            from connection: AVCaptureConnection
+        ) {
+            guard !hasDelivered,
+                  let object = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+                  let value = object.stringValue
+            else { return }
+
+            hasDelivered = true
+            AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
+            onScanned(value)
+        }
+    }
+}
+
+// MARK: - Scanner View Controller
+
+final class ScannerViewController: UIViewController {
+    weak var coordinator: QRScannerView.Coordinator?
+
+    private let session = AVCaptureSession()
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private let sessionQueue = DispatchQueue(label: "app.dutch.scanner.session")
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        requestAccessAndConfigure()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer?.frame = view.bounds
+    }
+
+    /// Asking first is not optional: opening a capture device without an
+    /// authorised session and an `NSCameraUsageDescription` terminates the app.
+    private func requestAccessAndConfigure() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configureSession()
+
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    if granted {
+                        self.configureSession()
+                    } else {
+                        self.coordinator?.report(QRScannerError.permissionDenied)
+                    }
+                }
+            }
+
+        case .denied, .restricted:
+            coordinator?.report(QRScannerError.permissionDenied)
+
+        @unknown default:
+            coordinator?.report(QRScannerError.cameraUnavailable)
+        }
+    }
+
+    private func configureSession() {
+        guard let device = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input)
+        else {
+            coordinator?.report(QRScannerError.cameraUnavailable)
+            return
+        }
+
+        session.beginConfiguration()
+        session.addInput(input)
+
+        let output = AVCaptureMetadataOutput()
+        guard session.canAddOutput(output) else {
+            session.commitConfiguration()
+            coordinator?.report(QRScannerError.cameraUnavailable)
+            return
+        }
+        session.addOutput(output)
+        output.setMetadataObjectsDelegate(coordinator, queue: .main)
+        // Must be assigned *after* the output joins the session, or it is empty.
+        output.metadataObjectTypes = [.qr]
+        session.commitConfiguration()
+
+        let preview = AVCaptureVideoPreviewLayer(session: session)
+        preview.frame = view.bounds
+        preview.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(preview)
+        previewLayer = preview
+
+        start()
+    }
+
+    private func start() {
+        sessionQueue.async { [session] in
+            guard !session.isRunning else { return }
+            session.startRunning()
+        }
+    }
+
+    func stop() {
+        sessionQueue.async { [session] in
+            guard session.isRunning else { return }
+            session.stopRunning()
+        }
+    }
+
+    deinit {
+        stop()
+    }
+}
+
+// MARK: - Errors
+
+enum QRScannerError: LocalizedError {
+    case cameraUnavailable
+    case permissionDenied
+
+    var errorDescription: String? {
+        switch self {
+        case .cameraUnavailable:
+            "No camera is available on this device."
+        case .permissionDenied:
+            "Dutch needs camera access to scan a group's QR code. You can grant it in Settings."
+        }
+    }
+}
