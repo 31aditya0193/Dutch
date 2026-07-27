@@ -32,4 +32,18 @@ enum QRCodeGenerator {
 
         return UIImage(cgImage: cgImage)
     }
+
+    /// Generates off the main actor.
+    ///
+    /// `generate(from:)` is a few milliseconds of CIFilter encoding and
+    /// rasterisation. Being `nonisolated async`, this runs on the cooperative
+    /// pool rather than the caller's actor, so the share sheet's spinner keeps
+    /// animating while the code is built.
+    ///
+    /// - Parameter url: The share URL to encode, or `nil` if iCloud hasn't
+    ///   produced one yet.
+    static func image(for url: URL?) async -> UIImage? {
+        guard let string = url?.absoluteString else { return nil }
+        return generate(from: string)
+    }
 }

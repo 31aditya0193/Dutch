@@ -105,7 +105,7 @@ public enum SettlementCalculator {
             // same inputs always produce the same cent-level result.
             let sharers = expense.sharedBetween
                 .filter { known[$0] != nil }
-                .sorted { $0.uuidString < $1.uuidString }
+                .sorted(by: precedes)
 
             guard known[expense.payer] != nil, !sharers.isEmpty else { continue }
 
@@ -169,6 +169,29 @@ public enum SettlementCalculator {
         }
 
         return transfers
+    }
+
+    /// Orders two ids by their raw bytes.
+    ///
+    /// This is the same total order as comparing `uuidString`: each byte is two
+    /// hex digits at the same offset in both strings, and ASCII puts `0`–`9`
+    /// before `A`–`F`, so no pair can compare differently. The split therefore
+    /// hands the leftover cents to exactly the same people it always did —
+    /// which is the point of sorting here at all, since two devices computing
+    /// different remainders would disagree about who owes what.
+    ///
+    /// What changes is the cost: `uuidString` built and discarded a
+    /// 36-character String on *every comparison*, in the loop that runs once
+    /// per expense.
+    private static func precedes(_ lhs: UUID, _ rhs: UUID) -> Bool {
+        withUnsafeBytes(of: lhs.uuid) { left in
+            withUnsafeBytes(of: rhs.uuid) { right in
+                for index in left.indices where left[index] != right[index] {
+                    return left[index] < right[index]
+                }
+                return false
+            }
+        }
     }
 
     private static func indexOfLargest(

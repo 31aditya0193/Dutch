@@ -64,6 +64,49 @@ extension ExpenseGroup {
     }
 }
 
+// MARK: - Composite
+
+extension ExpenseGroup {
+    /// Everything a screen derives from a group's contents, from one pass.
+    ///
+    /// Each accessor above is honest on its own but rebuilds `entries` and
+    /// `roster` from the relationship sets, and `transfers` runs `balances`
+    /// again on top of that. Reading several of them — which every screen in
+    /// the app does — pays for that walk once per reading, and reading one
+    /// *per row* pays for it once per row.
+    struct Settlement {
+        let transfers: [Transfer]
+        let totalSpent: Money
+
+        /// Net position keyed by participant, because the screens that show a
+        /// balance show one per member row. Scanning the ordered `balances`
+        /// array per row is quadratic in members; the ordered form is still on
+        /// the group itself for anyone who wants it.
+        let balanceByParticipant: [Participant.ID: Money]
+    }
+
+    /// Computes the group's settlement in a single pass over its members and
+    /// expenses.
+    ///
+    /// A method rather than a property, deliberately: this is not free, and a
+    /// call site should read like it costs something. Take one per render and
+    /// pass it down — don't call it per row.
+    func settlement() -> Settlement {
+        let roster = roster
+        let entries = entries
+        let balances = SettlementCalculator.balances(for: entries, roster: roster)
+
+        return Settlement(
+            transfers: SettlementCalculator.transfers(settling: balances),
+            totalSpent: entries.reduce(Money.zero) { $0 + $1.amount },
+            balanceByParticipant: Dictionary(
+                balances.map { ($0.participant.id, $0.amount) },
+                uniquingKeysWith: { first, _ in first }
+            )
+        )
+    }
+}
+
 // MARK: - Currency
 
 extension ExpenseGroup {

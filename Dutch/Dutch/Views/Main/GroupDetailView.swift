@@ -24,30 +24,18 @@ struct GroupDetailView: View {
 
     private var store: GroupStore { GroupStore(context: context) }
 
-    private var members: [Person] {
-        (group.members as? Set<Person>)?
-            .sorted { ($0.name ?? "") < ($1.name ?? "") } ?? []
-    }
-
-    private var expenses: [Expense] {
-        (group.expenses as? Set<Expense>)?
-            .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) } ?? []
-    }
-
-    private var balances: [Balance] {
-        group.balances
-    }
-
-    private var transfers: [Transfer] {
-        group.transfers
-    }
-
     var body: some View {
+        // Gathered once and passed down. Read as computed properties these were
+        // re-evaluated at every mention: one full settlement per member row,
+        // two more for the Settle Up section, and the member and expense sets
+        // sorted four times each.
+        let contents = Contents(group: group)
+
         List {
-            summarySection
-            membersSection
-            settleUpSection
-            expensesSection
+            summarySection(contents)
+            membersSection(contents)
+            settleUpSection(contents)
+            expensesSection(contents)
         }
         .navigationTitle(group.name ?? "Group")
         .toolbar {
@@ -57,7 +45,7 @@ struct GroupDetailView: View {
                 } label: {
                     Label("Add Expense", systemImage: "plus.circle")
                 }
-                .disabled(members.isEmpty)
+                .disabled(contents.members.isEmpty)
 
                 Button {
                     showingShareSheet = true
@@ -94,46 +82,46 @@ struct GroupDetailView: View {
     /// Hidden until there is something to total — a large `0.00` on a brand new
     /// group is noise sitting where the useful number will eventually be.
     @ViewBuilder
-    private var summarySection: some View {
-        if !expenses.isEmpty {
+    private func summarySection(_ contents: Contents) -> some View {
+        if !contents.expenses.isEmpty {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Total spent")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
-                    Text(group.totalSpent.formatted(in: group))
+                    Text(contents.totalSpent.formatted(in: group))
                         .font(.largeTitle.weight(.semibold))
                         .monospacedDigit()
                         .contentTransition(.numericText())
 
-                    Text("\(count(expenses.count, "expense", "expenses")) · \(count(members.count, "member", "members"))")
+                    Text("\(count(contents.expenses.count, "expense", "expenses")) · \(count(contents.members.count, "member", "members"))")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .animation(.snappy, value: group.totalSpent)
+                .animation(.snappy, value: contents.totalSpent)
                 .accessibilityElement(children: .combine)
             }
         }
     }
 
-    private var membersSection: some View {
+    private func membersSection(_ contents: Contents) -> some View {
         Section("Members") {
-            if members.isEmpty {
+            if contents.members.isEmpty {
                 Text("Add members to start splitting expenses.")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(members, id: \.objectID) { member in
+                ForEach(contents.members, id: \.objectID) { member in
                     MemberBalanceRow(
                         name: member.name ?? "Unnamed",
-                        balance: balances.first { $0.participant.id == member.id }?.amount,
+                        balance: member.id.flatMap { contents.balances[$0] },
                         currencyCode: group.currency
                     )
                 }
                 .onDelete { offsets in
-                    membersPendingDeletion = offsets.map { members[$0] }
+                    membersPendingDeletion = offsets.map { contents.members[$0] }
                 }
             }
 
@@ -149,10 +137,10 @@ struct GroupDetailView: View {
     }
 
     @ViewBuilder
-    private var settleUpSection: some View {
-        if !transfers.isEmpty {
+    private func settleUpSection(_ contents: Contents) -> some View {
+        if !contents.transfers.isEmpty {
             Section {
-                ForEach(transfers) { transfer in
+                ForEach(contents.transfers) { transfer in
                     TransferRow(transfer: transfer, currencyCode: group.currency)
                 }
             } header: {
@@ -166,10 +154,10 @@ struct GroupDetailView: View {
         }
     }
 
-    private var expensesSection: some View {
+    private func expensesSection(_ contents: Contents) -> some View {
         Section("Expenses") {
-            if expenses.isEmpty {
-                if members.isEmpty {
+            if contents.expenses.isEmpty {
+                if contents.members.isEmpty {
                     Text("No expenses yet.")
                         .foregroundStyle(.secondary)
                 } else {
@@ -182,10 +170,12 @@ struct GroupDetailView: View {
                     }
                 }
             } else {
-                ForEach(expenses, id: \.objectID) { expense in
+                ForEach(contents.expenses, id: \.objectID) { expense in
                     ExpenseRow(expense: expense, currencyCode: group.currency)
                 }
-                .onDelete(perform: deleteExpenses)
+                .onDelete { offsets in
+                    delete(at: offsets, from: contents.expenses)
+                }
             }
         }
     }
@@ -240,7 +230,7 @@ struct GroupDetailView: View {
         }
     }
 
-    private func deleteExpenses(at offsets: IndexSet) {
+    private func delete(at offsets: IndexSet, from expenses: [Expense]) {
         do {
             for index in offsets {
                 try store.delete(expenses[index])
@@ -252,6 +242,34 @@ struct GroupDetailView: View {
 
     private func count(_ value: Int, _ singular: String, _ plural: String) -> String {
         "\(value) \(value == 1 ? singular : plural)"
+    }
+}
+
+// MARK: - Render Snapshot
+
+/// Everything `GroupDetailView` reads off its group, gathered in one pass.
+///
+/// Ordinary computed properties would be re-evaluated at every mention, and
+/// this screen mentions them a lot: the member list alone touched the balances
+/// once per row, each time walking every expense and re-running the whole
+/// settlement to pull out a single number.
+private struct Contents {
+    let members: [Person]
+    let expenses: [Expense]
+    let balances: [Participant.ID: Money]
+    let transfers: [Transfer]
+    let totalSpent: Money
+
+    init(group: ExpenseGroup) {
+        members = (group.members as? Set<Person>)?
+            .sorted { ($0.name ?? "") < ($1.name ?? "") } ?? []
+        expenses = (group.expenses as? Set<Expense>)?
+            .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) } ?? []
+
+        let settlement = group.settlement()
+        balances = settlement.balanceByParticipant
+        transfers = settlement.transfers
+        totalSpent = settlement.totalSpent
     }
 }
 

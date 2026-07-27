@@ -19,7 +19,12 @@ struct ShareGroupView: View {
 
     private enum Phase {
         case preparing
-        case ready(share: CKShare, container: CKContainer)
+        /// The QR code is carried here rather than generated in `body`.
+        /// Encoding a share URL at correction level Q and rasterising it to a
+        /// `CGImage` is milliseconds of work, and `body` re-ran it on every
+        /// state change — including the one that presents the invite sheet, so
+        /// it landed squarely in that transition.
+        case ready(share: CKShare, container: CKContainer, qrCode: UIImage?)
         case failed(String)
     }
 
@@ -31,8 +36,8 @@ struct ShareGroupView: View {
                     ProgressView("Preparing invitation…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                case .ready(let share, let container):
-                    readyContent(share: share, container: container)
+                case .ready(let share, let container, let qrCode):
+                    readyContent(share: share, container: container, qrCode: qrCode)
 
                 case .failed(let message):
                     ContentUnavailableView(
@@ -56,12 +61,15 @@ struct ShareGroupView: View {
     // MARK: - Ready state
 
     @ViewBuilder
-    private func readyContent(share: CKShare, container: CKContainer) -> some View {
+    private func readyContent(
+        share: CKShare,
+        container: CKContainer,
+        qrCode: UIImage?
+    ) -> some View {
         ScrollView {
             VStack(spacing: 24) {
-                if let url = share.url,
-                   let qrImage = QRCodeGenerator.generate(from: url.absoluteString) {
-                    Image(uiImage: qrImage)
+                if let qrCode {
+                    Image(uiImage: qrCode)
                         .interpolation(.none)
                         .resizable()
                         .scaledToFit()
@@ -149,7 +157,11 @@ struct ShareGroupView: View {
                 try? context.save()
             }
 
-            phase = .ready(share: share, container: container)
+            phase = .ready(
+                share: share,
+                container: container,
+                qrCode: await QRCodeGenerator.image(for: share.url)
+            )
         } catch {
             phase = .failed(error.localizedDescription)
         }

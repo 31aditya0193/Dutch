@@ -13,10 +13,29 @@ struct GroupListView: View {
     /// The spring is deliberate: `.default` is an ease, which reads as
     /// mechanical when a row arrives from a sync the user didn't initiate.
     @FetchRequest(
-        sortDescriptors: [SortDescriptor(\ExpenseGroup.creationDate, order: .reverse)],
+        fetchRequest: GroupListView.groupsRequest,
         animation: .spring(response: 0.35, dampingFraction: 0.8)
     )
     private var groups: FetchedResults<ExpenseGroup>
+
+    /// Every row totals its group and works out who still owes whom, which
+    /// reaches through all four relationships. Left to fault on demand that is
+    /// a separate main-thread round trip to SQLite per relationship per row,
+    /// paid while the list is scrolling; prefetching folds them into the one
+    /// fetch that produced the rows.
+    private static var groupsRequest: NSFetchRequest<ExpenseGroup> {
+        let request = ExpenseGroup.fetchRequest()
+        request.sortDescriptors = [
+            NSSortDescriptor(keyPath: \ExpenseGroup.creationDate, ascending: false)
+        ]
+        request.relationshipKeyPathsForPrefetching = [
+            "members",
+            "expenses",
+            "expenses.paidBy",
+            "expenses.splitAmong",
+        ]
+        return request
+    }
 
     /// Path-based navigation so creating a group can push straight into it.
     @State private var path: [ExpenseGroup] = []
@@ -120,10 +139,10 @@ private struct GroupRow: View {
     @ObservedObject var group: ExpenseGroup
 
     var body: some View {
-        // Evaluated once per render rather than per reference — each of these
-        // walks the group's expenses.
-        let total = group.totalSpent
-        let pendingTransfers = group.transfers.count
+        // One settlement per row. `totalSpent` and `transfers` were separate
+        // walks of the same expenses, and `transfers` rebuilt the balances on
+        // top of that — three passes to render two numbers.
+        let settlement = group.settlement()
         let memberCount = group.members?.count ?? 0
         let expenseCount = group.expenses?.count ?? 0
 
@@ -131,14 +150,22 @@ private struct GroupRow: View {
             HStack(alignment: .firstTextBaseline) {
                 identity(memberCount: memberCount, expenseCount: expenseCount)
                 Spacer(minLength: 12)
-                money(total: total, pending: pendingTransfers, alignment: .trailing)
+                money(
+                    total: settlement.totalSpent,
+                    pending: settlement.transfers.count,
+                    alignment: .trailing
+                )
             }
 
             // Once names, currency and type size stop sharing a line, stack
             // rather than truncate.
             VStack(alignment: .leading, spacing: 8) {
                 identity(memberCount: memberCount, expenseCount: expenseCount)
-                money(total: total, pending: pendingTransfers, alignment: .leading)
+                money(
+                    total: settlement.totalSpent,
+                    pending: settlement.transfers.count,
+                    alignment: .leading
+                )
             }
         }
         .padding(.vertical, 4)

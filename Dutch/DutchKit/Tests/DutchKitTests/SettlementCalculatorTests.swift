@@ -246,3 +246,52 @@ struct SettlementTransferTests {
         #expect(transfers.reduce(Money.zero) { $0 + $1.amount } == Money(cents: 8000))
     }
 }
+
+// MARK: - Remainder ordering
+
+/// The leftover minor units of an uneven split go to the earliest sharers by
+/// id, and "earliest" has to keep meaning the same thing on every device and
+/// across every release — two devices that disagree about the order disagree
+/// about who owes the extra cent, and the balances stop reconciling.
+@Suite("Remainder ordering")
+struct RemainderOrderingTests {
+
+    @Test("The extra cent goes to whichever id sorts first as a string")
+    func remainderFollowsUUIDStringOrder() {
+        for _ in 0 ..< 500 {
+            let first = Participant(id: UUID(), name: "First")
+            let second = Participant(id: UUID(), name: "Second")
+            let payer = Participant(id: UUID(), name: "Payer")
+
+            let balances = SettlementCalculator.balances(
+                for: [Fixture.expense(101, paidBy: payer, sharedBetween: [first, second])],
+                roster: [first, second, payer]
+            )
+
+            // 101 split two ways is 51 and 50, charged as negative balances.
+            let earlier = first.id.uuidString < second.id.uuidString ? first : second
+            let later = earlier.id == first.id ? second : first
+
+            #expect(amount(for: earlier, in: balances) == Money(cents: -51))
+            #expect(amount(for: later, in: balances) == Money(cents: -50))
+        }
+    }
+
+    @Test("Ordering holds across the digit-to-letter boundary in each byte")
+    func remainderAcrossHexBoundary() {
+        // Ids chosen so the sharers arrive out of order and the deciding byte
+        // straddles `9`/`A`, where a byte comparison and a hex-string
+        // comparison would diverge if the two orders were not equivalent.
+        let high = Participant(id: UUID(uuidString: "A0000000-0000-0000-0000-000000000000")!, name: "High")
+        let low = Participant(id: UUID(uuidString: "9F000000-0000-0000-0000-000000000000")!, name: "Low")
+        let payer = Participant(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, name: "Payer")
+
+        let balances = SettlementCalculator.balances(
+            for: [Fixture.expense(101, paidBy: payer, sharedBetween: [high, low])],
+            roster: [high, low, payer]
+        )
+
+        #expect(amount(for: low, in: balances) == Money(cents: -51))
+        #expect(amount(for: high, in: balances) == Money(cents: -50))
+    }
+}
