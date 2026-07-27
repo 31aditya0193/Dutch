@@ -199,12 +199,43 @@ struct GroupDetailView: View {
     /// Names the cascade explicitly. Deleting the expenses they paid for is the
     /// correct behaviour — see `GroupStore.delete(_ member:)` — but it is not
     /// something a swipe should do silently.
+    ///
+    /// Both halves of the cascade matter. Counting only `paidExpenses` claimed
+    /// "this won't change anyone else's balance" for a member who had paid for
+    /// nothing but was still splitting other people's expenses — removing them
+    /// drops them from `splitAmong`, so those expenses re-divide between fewer
+    /// people and every remaining balance moves. The warning said one thing and
+    /// the screen behind it did another.
     private var deletionMessage: String {
-        let affected = membersPendingDeletion.reduce(0) { $0 + ($1.paidExpenses?.count ?? 0) }
-        guard affected > 0 else {
+        let (removed, resplit) = deletionImpact
+
+        switch (removed, resplit) {
+        case (0, 0):
             return "This won't change anyone else's balance."
+        case (0, _):
+            return "\(count(resplit, "expense", "expenses")) they were splitting gets divided between everyone left, so balances change."
+        case (_, 0):
+            return "This also removes \(count(removed, "expense", "expenses")) they paid for, and recalculates everyone's balance."
+        default:
+            return "This also removes \(count(removed, "expense", "expenses")) they paid for and re-splits \(count(resplit, "expense", "expenses")) between everyone left. Balances change."
         }
-        return "This also removes \(count(affected, "expense", "expenses")) they paid for, and recalculates everyone's balance."
+    }
+
+    /// Expenses that disappear with the member, and surviving expenses that get
+    /// re-divided without them.
+    ///
+    /// Both are counted over sets: removing two members at once would otherwise
+    /// double-count an expense they were splitting together.
+    private var deletionImpact: (removed: Int, resplit: Int) {
+        var removed: Set<Expense> = []
+        var shared: Set<Expense> = []
+
+        for member in membersPendingDeletion {
+            removed.formUnion((member.paidExpenses as? Set<Expense>) ?? [])
+            shared.formUnion((member.sharedExpenses as? Set<Expense>) ?? [])
+        }
+
+        return (removed.count, shared.subtracting(removed).count)
     }
 
     private func confirmMemberDeletion() {
