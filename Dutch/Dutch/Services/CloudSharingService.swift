@@ -14,6 +14,7 @@ enum CloudSharingService {
     enum SharingError: LocalizedError {
         case noShareAvailable
         case sharedStoreUnavailable
+        case privateStoreUnavailable
 
         var errorDescription: String? {
             switch self {
@@ -21,6 +22,8 @@ enum CloudSharingService {
                 "This group could not be prepared for sharing. Check that you're signed in to iCloud."
             case .sharedStoreUnavailable:
                 "Shared groups can't be stored right now. Check that you're signed in to iCloud."
+            case .privateStoreUnavailable:
+                "This group can't be prepared for sharing right now. Check that you're signed in to iCloud."
             }
         }
     }
@@ -36,13 +39,54 @@ enum CloudSharingService {
     /// Re-sharing an already-shared group must reuse its `CKShare`; creating a
     /// second one would strand the members who accepted the first.
     static func share(for group: ExpenseGroup) async throws -> (CKShare, CKContainer) {
+        let ckContainer = CKContainer(identifier: PersistenceController.cloudKitContainerIdentifier)
+
+        // An existing share is returned exactly as it stands. Re-opening it
+        // here would look like a helpful upgrade for groups made by an older
+        // build, but it would also silently undo an owner who deliberately
+        // switched their group back to invitation-only — and it would do it
+        // just by their visiting the share screen. Owner intent wins; the
+        // share screen offers the switch instead.
         if let existing = try? existingShare(for: group) {
-            return (existing, CKContainer(identifier: PersistenceController.cloudKitContainerIdentifier))
+            return (existing, ckContainer)
         }
 
-        let (_, share, ckContainer) = try await container.share([group], to: nil)
+        let (_, share, sharedContainer) = try await container.share([group], to: nil)
         share[CKShare.SystemFieldKey.title] = group.name ?? "Expense Group"
-        return (share, ckContainer)
+        return (try await makeScannable(share), sharedContainer)
+    }
+
+    /// Opens a share to anyone holding its URL, and saves that back to CloudKit.
+    ///
+    /// A `CKShare` defaults to `publicPermission == .none`, which means the URL
+    /// authorises nobody: only Apple IDs the owner added as participants can
+    /// accept, and everyone else sees "Item Unavailable". That default is fine
+    /// for an invitation sent through Messages — the system sheet adds the
+    /// recipient as it sends — but it is fatal for a QR code, which has no
+    /// step that could add anyone. Left at `.none`, scanning the code can only
+    /// ever work for someone who was *already* invited, which makes the code a
+    /// redundant second channel rather than a way in.
+    ///
+    /// So a newly created share is opened up, and the URL becomes the
+    /// credential. It is an Apple-generated random token, not something
+    /// guessable, but it is a bearer token: whoever holds it is in.
+    /// `ShareGroupView` says so plainly, and the owner can still switch a group
+    /// back to invitation-only from the system sharing sheet.
+    ///
+    /// Only ever called for shares this method just created — see the note in
+    /// `share(for:)` about not overriding an owner's later choice.
+    @discardableResult
+    private static func makeScannable(_ share: CKShare) async throws -> CKShare {
+        guard share.publicPermission == .none else { return share }
+        guard let privateStore = PersistenceController.shared.privateStore else {
+            throw SharingError.privateStoreUnavailable
+        }
+
+        share.publicPermission = .readWrite
+        // Core Data does not notice changes made to a `CKShare` behind its
+        // back; without this the new permission never reaches the server and
+        // the local cache goes stale.
+        return try await container.persistUpdatedShare(share, in: privateStore)
     }
 
     /// The share already attached to this group, if it has one.

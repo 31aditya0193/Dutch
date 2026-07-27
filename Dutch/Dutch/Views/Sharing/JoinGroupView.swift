@@ -1,3 +1,4 @@
+import CloudKit
 import SwiftUI
 
 /// Scans a group's QR code and accepts the CloudKit share it points at.
@@ -118,8 +119,34 @@ struct JoinGroupView: View {
                 try await CloudSharingService.acceptShare(at: url)
                 dismiss()
             } catch {
-                phase = .failed(error.localizedDescription)
+                phase = .failed(Self.message(for: error))
             }
+        }
+    }
+
+    /// Turns CloudKit's errors into something a person can act on.
+    ///
+    /// The permission cases matter most: a group whose share is still
+    /// invitation-only produces a scan that cannot succeed no matter how well
+    /// it is aimed, and CloudKit describes that as "Item Unavailable" — which
+    /// reads like the code was misread, and sends people back to the camera to
+    /// try again forever. Name the real cause and the way out.
+    private static func message(for error: Error) -> String {
+        guard let ckError = error as? CKError else {
+            return error.localizedDescription
+        }
+
+        switch ckError.code {
+        case .participantMayNeedVerification:
+            return "This group only accepts people invited by name. Ask whoever shared it to send you an invitation, or to allow anyone with the link."
+        case .unknownItem:
+            return "That invitation is no longer available. The group may have stopped being shared."
+        case .notAuthenticated:
+            return "Sign in to iCloud in Settings to join a shared group."
+        case .networkUnavailable, .networkFailure:
+            return "You appear to be offline. Check your connection and scan again."
+        default:
+            return ckError.localizedDescription
         }
     }
 }

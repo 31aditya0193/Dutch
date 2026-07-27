@@ -124,11 +124,25 @@ struct ShareGroupView: View {
                 .controlSize(.large)
                 .padding(.horizontal)
 
-                Text("Scan the code, or send an invitation through Messages or Mail.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                // Told from the share's real permission, not from what the app
+                // asked for. A group made by an older build — or one the owner
+                // switched back to invitation-only — still shows a QR code,
+                // and that code admits nobody. Claiming otherwise would send
+                // people to a scanner that can only fail.
+                Group {
+                    if share.publicPermission == .none {
+                        Text("Only people you invite can join, so scanning this code won't work on its own. Use Invite People, and allow anyone with the link from there.")
+                    } else {
+                        // Scanning is joining, with no approval step on this
+                        // device. That's the point — but it has to be said,
+                        // because a QR code doesn't look like a key.
+                        Text("Anyone who scans this code can join the group. Use Invite People instead to choose people yourself.")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
             }
             .padding(.top, 24)
         }

@@ -19,7 +19,11 @@ struct CloudSharingSheet: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UICloudSharingController {
         let controller = UICloudSharingController(share: share, container: container)
         controller.delegate = context.coordinator
-        controller.availablePermissions = [.allowReadWrite, .allowPrivate]
+        // `.allowPublic` has to be here or the sheet won't show "Anyone with
+        // the link" — and without that setting the group's QR code admits
+        // nobody. `.allowPrivate` stays available so an owner who wants a
+        // closed group can still switch back to invitation-only.
+        controller.availablePermissions = [.allowReadWrite, .allowPublic, .allowPrivate]
         return controller
     }
 
@@ -38,7 +42,26 @@ struct CloudSharingSheet: UIViewControllerRepresentable {
             print("[Dutch] Failed to save share: \(error.localizedDescription)")
         }
 
-        func cloudSharingControllerDidSaveShare(_ csc: UICloudSharingController) {}
+        /// Writes the sheet's edits back into the Core Data store.
+        ///
+        /// Now that the sheet can change *who can access* — the owner may
+        /// switch a group back to invitation-only — this is no longer a no-op.
+        /// `NSPersistentCloudKitContainer` doesn't observe changes made to a
+        /// `CKShare` by CloudKit APIs, so without this the local cache keeps
+        /// reporting the old permission and `makeScannable` would reopen a
+        /// group the owner just closed.
+        func cloudSharingControllerDidSaveShare(_ csc: UICloudSharingController) {
+            guard let share = csc.share else { return }
+            Task { @MainActor in
+                guard let store = PersistenceController.shared.privateStore else { return }
+                do {
+                    try await PersistenceController.shared.container
+                        .persistUpdatedShare(share, in: store)
+                } catch {
+                    print("[Dutch] Failed to persist updated share: \(error.localizedDescription)")
+                }
+            }
+        }
 
         func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {}
     }
