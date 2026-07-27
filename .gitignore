@@ -84,6 +84,11 @@ DerivedData/
 *.xcuserstate
 *.xcusershowsense
 *.xcscheme
+# ...but shared schemes are project configuration, not user data. Without the
+# scheme a fresh clone can't build or test at all: xcodebuild fails with
+# "isn't a member of the specified test plan or scheme". Per-user schemes are
+# already covered by the xcuserdata/ rules above.
+!**/xcshareddata/xcschemes/*.xcscheme
 *.xcsettings
 
 # System
