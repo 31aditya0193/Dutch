@@ -502,9 +502,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		3C0D155B3C38B650597E4670 /* XCLocalSwiftPackageReference "../DutchKit" */ = {
+		3C0D155B3C38B650597E4670 /* XCLocalSwiftPackageReference "DutchKit" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../DutchKit;
+			relativePath = DutchKit;
 		};
 /* End XCLocalSwiftPackageReference section */
 
