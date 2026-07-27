@@ -262,6 +262,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Dutch-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Dutch;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Dutch uses the camera to scan a group's QR code so you can join it.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -393,6 +394,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Dutch-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Dutch;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Dutch uses the camera to scan a group's QR code so you can join it.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

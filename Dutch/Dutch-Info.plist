@@ -2,20 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Everything else in this app's Info.plist is generated from
-	     INFOPLIST_KEY_* build settings, and this file is merged on top of
-	     that (GENERATE_INFOPLIST_FILE stays YES).
-
-	     UIBackgroundModes has to live here because it is array-valued and
-	     Xcode's INFOPLIST_KEY_ mechanism silently drops it — the setting
-	     was present for months and the key never reached the built app.
-	     Without it CloudKit's silent push is refused ("BUG IN CLIENT OF
-	     CLOUDKIT: CloudKit push notifications require the
-	     'remote-notification' background mode"), registerForRemoteNotifications
-	     in AppDelegate does nothing, and remote changes only appear on the
-	     next launch. Verify with:
-	       plutil -extract UIBackgroundModes json -o - "$BUILT_APP/Info.plist"
-	-->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
