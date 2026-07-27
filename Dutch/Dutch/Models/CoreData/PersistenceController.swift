@@ -94,9 +94,19 @@ final class PersistenceController {
         viewContext.automaticallyMergesChangesFromParent = true
         viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         viewContext.transactionAuthor = "app"
-        // Pins the context to a consistent snapshot so that merges arriving
-        // mid-read don't surface half-applied state in the UI.
-        try? viewContext.setQueryGenerationFrom(.current)
+
+        if !inMemory {
+            // Pins the context to a consistent snapshot so that merges arriving
+            // mid-read don't surface half-applied state in the UI.
+            //
+            // Only for the real stores. The `/dev/null` store used by tests and
+            // previews doesn't support query generations: `try?` hides the
+            // failure here, and every later fetch then throws out of
+            // `-[NSSQLCore currentQueryGeneration]` — which surfaces as the app
+            // aborting inside whichever `@FetchRequest` renders first, with
+            // nothing in the trace pointing back here.
+            try? viewContext.setQueryGenerationFrom(.current)
+        }
     }
 
     private func configureCloudKitStores(privateDescription: NSPersistentStoreDescription) {
