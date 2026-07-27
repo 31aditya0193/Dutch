@@ -12,6 +12,7 @@
     <entity name="ExpenseGroup" representedClassName="ExpenseGroup" syncable="YES" codeGenerationType="class">
         <attribute name="cloudKitShareURL" optional="YES" attributeType="URI"/>
         <attribute name="creationDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="currencyCode" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="name" optional="YES" attributeType="String"/>
         <attribute name="wordSequence" optional="YES" attributeType="String"/>

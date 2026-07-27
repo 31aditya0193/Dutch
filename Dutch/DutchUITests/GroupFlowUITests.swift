@@ -28,12 +28,16 @@ final class GroupFlowUITests: XCTestCase {
 
         let nameField = app.textFields["Group Name"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
         nameField.typeText("Berlin Trip")
         app.buttons["Create"].tap()
 
-        let groupCell = app.staticTexts["Berlin Trip"]
-        XCTAssertTrue(groupCell.waitForExistence(timeout: 5), "The new group should appear in the list.")
-        groupCell.tap()
+        // Creating pushes straight into the new group — it is empty and
+        // useless until it has members, so there is nothing to go back to.
+        XCTAssertTrue(
+            app.navigationBars["Berlin Trip"].waitForExistence(timeout: 5),
+            "Creating a group should open it."
+        )
 
         // ── Add two members ─────────────────────────────────────
         try addMember(named: "Alice")
@@ -57,8 +61,9 @@ final class GroupFlowUITests: XCTestCase {
         app.buttons["Who paid?"].tap()
         app.buttons["Alice"].tap()
 
-        // Alice is preselected as a sharer; add Bob.
-        app.staticTexts["Bob"].tap()
+        // Alice is preselected as a sharer; add Bob. The split rows are
+        // buttons now, not tap gestures on text.
+        app.buttons["Bob"].firstMatch.tap()
 
         app.buttons["Save"].tap()
 
@@ -67,7 +72,52 @@ final class GroupFlowUITests: XCTestCase {
             app.staticTexts["Settle Up"].waitForExistence(timeout: 5),
             "A split expense should produce a settle-up section."
         )
-        XCTAssertTrue(app.staticTexts["pays"].exists)
+
+        // The row shows an arrow rather than the word, so assert on the
+        // accessibility label the row combines for VoiceOver.
+        let settlement = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS[c] %@", "pays"))
+            .firstMatch
+        XCTAssertTrue(
+            settlement.waitForExistence(timeout: 5),
+            "The settle-up row should read as one payment to VoiceOver."
+        )
+    }
+
+    func testExpensesCanBeDeleted() throws {
+        app.buttons["New Group"].tap()
+
+        let nameField = app.textFields["Group Name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        nameField.typeText("Lunch Club")
+        app.buttons["Create"].tap()
+
+        try addMember(named: "Alice")
+
+        app.buttons["Add Expense"].tap()
+        let titleField = app.textFields["Title"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        titleField.tap()
+        titleField.typeText("Coffee")
+        app.textFields["Amount"].tap()
+        app.textFields["Amount"].typeText("5")
+        app.buttons["Who paid?"].tap()
+        app.buttons["Alice"].tap()
+        app.buttons["Save"].tap()
+
+        let expense = app.staticTexts["Coffee"]
+        XCTAssertTrue(expense.waitForExistence(timeout: 5))
+
+        // A mistyped expense used to be permanent, which quietly poisoned
+        // every balance in the group.
+        expense.swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+
+        XCTAssertFalse(
+            expense.waitForExistence(timeout: 2),
+            "A swiped-away expense should be gone."
+        )
     }
 
     private func addMember(named name: String) throws {
@@ -75,6 +125,7 @@ final class GroupFlowUITests: XCTestCase {
 
         let field = app.textFields["Name"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
         field.typeText(name)
         app.buttons["Add"].tap()
     }

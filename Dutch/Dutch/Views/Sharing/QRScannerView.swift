@@ -1,5 +1,4 @@
 import AVFoundation
-import AudioToolbox
 import SwiftUI
 
 /// Camera QR scanner.
@@ -11,6 +10,13 @@ struct QRScannerView: UIViewControllerRepresentable {
     /// Called with the decoded payload. Delivered at most once.
     let onScanned: (String) -> Void
     var onError: ((Error) -> Void)?
+    /// Side of the centred square the scanner reads inside, in points.
+    ///
+    /// Must match the aiming frame the UI draws over this view, or the app
+    /// would claim to be looking somewhere it isn't.
+    var aimingSide: CGFloat = QRScannerView.defaultAimingSide
+
+    static let defaultAimingSide: CGFloat = 240
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onScanned: onScanned, onError: onError)
@@ -19,6 +25,7 @@ struct QRScannerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> ScannerViewController {
         let controller = ScannerViewController()
         controller.coordinator = context.coordinator
+        controller.aimingSide = aimingSide
         return controller
     }
 
@@ -60,7 +67,10 @@ struct QRScannerView: UIViewControllerRepresentable {
             else { return }
 
             hasDelivered = true
-            AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
+            // Confirmation is a `.sensoryFeedback(.success)` on the SwiftUI
+            // side. The legacy `kSystemSoundID_Vibrate` that used to fire here
+            // is the blunt motor buzz, which ignores the user's haptic settings
+            // and feels nothing like the Camera app's scan.
             onScanned(value)
         }
     }
@@ -70,9 +80,11 @@ struct QRScannerView: UIViewControllerRepresentable {
 
 final class ScannerViewController: UIViewController {
     weak var coordinator: QRScannerView.Coordinator?
+    var aimingSide: CGFloat = QRScannerView.defaultAimingSide
 
     private let session = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var metadataOutput: AVCaptureMetadataOutput?
     private let sessionQueue = DispatchQueue(label: "app.dutch.scanner.session")
 
     override func viewDidLoad() {
@@ -84,6 +96,33 @@ final class ScannerViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         previewLayer?.frame = view.bounds
+        updateRegionOfInterest()
+    }
+
+    /// Restricts decoding to the square the UI draws its aiming frame around.
+    ///
+    /// `rectOfInterest` is expressed in the capture device's coordinate space
+    /// rather than the view's, so it has to be converted through the preview
+    /// layer — and only once that layer has a real frame, which is why this
+    /// runs from layout rather than from `configureSession`.
+    private func updateRegionOfInterest() {
+        guard let preview = previewLayer,
+              let output = metadataOutput,
+              view.bounds.width > 0,
+              view.bounds.height > 0
+        else { return }
+
+        let side = min(aimingSide, min(view.bounds.width, view.bounds.height))
+        let square = CGRect(
+            x: view.bounds.midX - side / 2,
+            y: view.bounds.midY - side / 2,
+            width: side,
+            height: side
+        )
+
+        let converted = preview.metadataOutputRectConverted(fromLayerRect: square)
+        guard !converted.isNull, !converted.isEmpty else { return }
+        output.rectOfInterest = converted
     }
 
     /// Asking first is not optional: opening a capture device without an
@@ -136,6 +175,7 @@ final class ScannerViewController: UIViewController {
         // Must be assigned *after* the output joins the session, or it is empty.
         output.metadataObjectTypes = [.qr]
         session.commitConfiguration()
+        metadataOutput = output
 
         let preview = AVCaptureVideoPreviewLayer(session: session)
         preview.frame = view.bounds
@@ -143,6 +183,9 @@ final class ScannerViewController: UIViewController {
         view.layer.addSublayer(preview)
         previewLayer = preview
 
+        // Permission can resolve after layout has already run, so claim the
+        // region here as well as from `viewDidLayoutSubviews`.
+        updateRegionOfInterest()
         start()
     }
 

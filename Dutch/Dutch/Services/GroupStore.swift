@@ -11,12 +11,15 @@ struct GroupStore {
     let context: NSManagedObjectContext
 
     @discardableResult
-    func createGroup(named name: String) throws -> ExpenseGroup {
+    func createGroup(named name: String, currencyCode: String? = nil) throws -> ExpenseGroup {
         let group = ExpenseGroup(context: context)
         group.id = UUID()
         group.name = name
         group.wordSequence = WordGenerator.generate()
         group.creationDate = Date()
+        // Pinned at creation so the group reads the same on every member's
+        // device, whatever locale they happen to be in.
+        group.currencyCode = currencyCode ?? Locale.current.currency?.identifier ?? "USD"
 
         try context.save()
         return group
@@ -37,6 +40,26 @@ struct GroupStore {
     /// cascade rules.
     func delete(_ group: ExpenseGroup) throws {
         context.delete(group)
+        try context.save()
+    }
+
+    func delete(_ expense: Expense) throws {
+        context.delete(expense)
+        try context.save()
+    }
+
+    /// Removes a member, along with every expense they paid for.
+    ///
+    /// The model nullifies `paidBy` on delete, which would leave those expenses
+    /// payer-less. `Expense.entry` then drops them, so the money would vanish
+    /// from the split without ever appearing as a deletion — the balances would
+    /// simply be wrong. Removing them outright is the honest behaviour, and the
+    /// UI warns before calling this.
+    func delete(_ member: Person) throws {
+        for case let expense as Expense in member.paidExpenses ?? [] {
+            context.delete(expense)
+        }
+        context.delete(member)
         try context.save()
     }
 
