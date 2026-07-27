@@ -9,10 +9,14 @@ struct AddExpenseView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
-    @State private var amount: Double = 0
+    /// Held as text rather than a `Double` so the field can start genuinely
+    /// empty. Bound to a number it showed a literal `0` that `isValid` then
+    /// rejected — a form that looks filled in and refuses to save.
+    @State private var amountText = ""
     @State private var selectedPayer: Person?
     @State private var selectedParticipants: Set<Person> = []
     @State private var errorMessage: String?
+    @FocusState private var titleFocused: Bool
 
     private var store: GroupStore { GroupStore(context: context) }
 
@@ -24,55 +28,11 @@ struct AddExpenseView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // ── Details ─────────────────────────────────────
-                Section("Expense Details") {
-                    TextField("Title", text: $title)
-
-                    HStack {
-                        Text("$")
-                        TextField("Amount", value: $amount, format: .number)
-                            .keyboardType(.decimalPad)
-                    }
-                }
-
-                // ── Paid By ────────────────────────────────────
-                Section("Paid By") {
-                    if members.isEmpty {
-                        Text("Add members first.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Picker("Who paid?", selection: $selectedPayer) {
-                            Text("Select…").tag(nil as Person?)
-                            ForEach(members, id: \.objectID) { member in
-                                Text(member.name ?? "?").tag(member as Person?)
-                            }
-                        }
-                    }
-                }
-
-                // ── Split Among ─────────────────────────────────
-                Section {
-                    if members.isEmpty {
-                        Text("Add members first.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(members, id: \.objectID) { member in
-                            MemberToggleRow(
-                                name: member.name ?? "?",
-                                isSelected: selectedParticipants.contains(member)
-                            ) {
-                                toggle(member)
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Split Among")
-                } footer: {
-                    // The payer is not added implicitly — leaving them out is
-                    // how you record paying purely on someone else's behalf.
-                    Text("Include whoever shares the cost. Leave the payer out if they were covering it for others.")
-                }
+                detailsSection
+                paidBySection
+                splitAmongSection
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Add Expense")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -91,36 +51,145 @@ struct AddExpenseView: View {
                     selectedParticipants.insert(newPayer)
                 }
             }
-            .alert("Couldn't Save Expense", isPresented: errorBinding) {
-                Button("OK", role: .cancel) { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
+            // One haptic per change to the selection as a whole. Per-row
+            // feedback would fire six times at once on "Everyone".
+            .sensoryFeedback(.selection, trigger: selectedParticipants)
+            .errorBanner($errorMessage)
+            .task { titleFocused = true }
+        }
+    }
+
+    // MARK: - Sections
+
+    private var detailsSection: some View {
+        Section {
+            TextField("Title", text: $title)
+                .focused($titleFocused)
+                .submitLabel(.next)
+
+            HStack {
+                // Hidden from VoiceOver because the field below carries the
+                // same label — otherwise it is announced twice.
+                Text("Amount")
+                    .accessibilityHidden(true)
+
+                Spacer(minLength: 12)
+
+                TextField("0", text: $amountText)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .font(.body.monospacedDigit())
+                    // Without this the field's only label is its "0"
+                    // placeholder, which VoiceOver reads as "zero, text field".
+                    .accessibilityLabel("Amount")
+                    .accessibilityHint("In \(group.currency)")
+
+                // The group's currency, not the device's. Shown as a code
+                // rather than a symbol so it stays unambiguous between the
+                // currencies that share a `$` or a `kr`.
+                Text(group.currency)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+        } header: {
+            Text("Expense Details")
+        } footer: {
+            // Echoes back exactly what will be stored, which is the only way
+            // the user can catch a mis-parsed separator before saving.
+            if let amount = parsedAmount {
+                Text("Saves as \(Money(amount: amount).formatted(in: group))")
+                    .contentTransition(.numericText())
             }
         }
     }
 
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )
+    private var paidBySection: some View {
+        Section("Paid By") {
+            if members.isEmpty {
+                Text("Add members first.")
+                    .foregroundStyle(.secondary)
+            } else {
+                Picker("Who paid?", selection: $selectedPayer) {
+                    Text("Select…").tag(nil as Person?)
+                    ForEach(members, id: \.objectID) { member in
+                        Text(member.name ?? "?").tag(member as Person?)
+                    }
+                }
+            }
+        }
+    }
+
+    private var splitAmongSection: some View {
+        Section {
+            if members.isEmpty {
+                Text("Add members first.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(members, id: \.objectID) { member in
+                    MemberToggleRow(
+                        name: member.name ?? "?",
+                        isSelected: selectedParticipants.contains(member)
+                    ) {
+                        toggle(member)
+                    }
+                }
+            }
+        } header: {
+            HStack {
+                Text("Split Among")
+                Spacer()
+                if !members.isEmpty {
+                    // Splitting evenly across everyone is the common case, and
+                    // it used to cost one tap per member.
+                    Button(allSelected ? "None" : "Everyone") {
+                        withAnimation(.snappy) {
+                            selectedParticipants = allSelected ? [] : Set(members)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .textCase(nil)  // section headers uppercase; the button shouldn't
+                }
+            }
+        } footer: {
+            // The payer is not added implicitly — leaving them out is
+            // how you record paying purely on someone else's behalf.
+            Text("Include whoever shares the cost. Leave the payer out if they were covering it for others.")
+        }
     }
 
     // MARK: - Selection
 
+    private var allSelected: Bool {
+        !members.isEmpty && selectedParticipants.count == members.count
+    }
+
     private func toggle(_ member: Person) {
-        if selectedParticipants.contains(member) {
-            selectedParticipants.remove(member)
-        } else {
-            selectedParticipants.insert(member)
+        withAnimation(.snappy) {
+            if selectedParticipants.contains(member) {
+                selectedParticipants.remove(member)
+            } else {
+                selectedParticipants.insert(member)
+            }
         }
     }
 
     // MARK: - Validation
 
+    /// Accepts either decimal separator. `.decimalPad` shows whichever the
+    /// device locale uses, but people type the one their keyboard muscle memory
+    /// reaches for, and the pad emits no grouping separators to confuse this.
+    private var parsedAmount: Double? {
+        let normalized = amountText
+            .trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(normalized), value > 0 else { return nil }
+        return value
+    }
+
     private var isValid: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty
-            && amount > 0
+            && parsedAmount != nil
             && selectedPayer != nil
             && !selectedParticipants.isEmpty
     }
@@ -128,7 +197,7 @@ struct AddExpenseView: View {
     // MARK: - Save
 
     private func saveExpense() {
-        guard let payer = selectedPayer else { return }
+        guard let payer = selectedPayer, let amount = parsedAmount else { return }
 
         do {
             try store.addExpense(
@@ -154,16 +223,25 @@ private struct MemberToggleRow: View {
     let onTap: () -> Void
 
     var body: some View {
-        HStack {
-            Text(name)
-            Spacer()
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .foregroundStyle(Color.accentColor)
+        // A `Button`, not a tap gesture on a shape. To VoiceOver the old row
+        // was static text: no button trait, no selected state, nothing to
+        // activate. The empty circle matters too — an unselected member used
+        // to show nothing at all, so there was no cue the row was tappable.
+        Button(action: onTap) {
+            HStack {
+                Text(name)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 12)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    .imageScale(.large)
+                    .contentTransition(.symbolEffect(.replace))
             }
+            .contentShape(Rectangle())
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 

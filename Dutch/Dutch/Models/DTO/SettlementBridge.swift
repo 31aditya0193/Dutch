@@ -52,4 +52,38 @@ extension ExpenseGroup {
     var transfers: [Transfer] {
         SettlementCalculator.transfers(settling: balances)
     }
+
+    /// Everything the group has spent, whoever paid for it.
+    var totalSpent: Money {
+        entries.reduce(Money.zero) { $0 + $1.amount }
+    }
+
+    /// True when nobody owes anybody — including a group with no expenses yet.
+    var isSettled: Bool {
+        balances.allSatisfy(\.amount.isZero)
+    }
+}
+
+// MARK: - Currency
+
+extension ExpenseGroup {
+    /// The currency every amount in this group is expressed in.
+    ///
+    /// Stored on the group rather than read from `Locale.current` at display
+    /// time. A group shared between someone in Kraków and someone in Berlin is
+    /// still one bill in one currency, and rendering the same cents as `zł` on
+    /// one device and `€` on the other would be quietly, unfixably wrong.
+    ///
+    /// Optional in the model because CloudKit requires it, so groups created
+    /// before this attribute existed fall back to the reader's own locale.
+    var currency: String {
+        currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+    }
+}
+
+extension Money {
+    /// Formats in the currency the given group is denominated in.
+    func formatted(in group: ExpenseGroup) -> String {
+        formatted(currencyCode: group.currency)
+    }
 }

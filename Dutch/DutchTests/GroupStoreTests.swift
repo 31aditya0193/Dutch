@@ -83,6 +83,121 @@ struct GroupStoreTests {
         #expect(try context.count(for: Expense.fetchRequest()) == 0)
     }
 
+    @Test("A new group records the currency it was created in")
+    func createGroupPinsCurrency() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip", currencyCode: "EUR")
+
+        #expect(group.currencyCode == "EUR")
+        #expect(group.currency == "EUR")
+    }
+
+    /// Groups that predate the attribute fall back to the reader's locale
+    /// rather than rendering nothing.
+    @Test("A group with no stored currency falls back to the locale")
+    func currencyFallsBack() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        group.currencyCode = nil
+
+        #expect(group.currency == (Locale.current.currency?.identifier ?? "USD"))
+    }
+
+    // MARK: - Deleting
+
+    @Test("Deleting an expense removes it from the balances")
+    func deleteExpense() throws {
+        let context = Self.makeContext()
+        let store = GroupStore(context: context)
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        try store.addExpense(
+            title: "Dinner",
+            amount: Money(amount: 30.00),
+            paidBy: alice,
+            splitAmong: [alice, bob],
+            in: group
+        )
+        let expense = try #require((group.expenses as? Set<Expense>)?.first)
+
+        try store.delete(expense)
+
+        #expect(try context.count(for: Expense.fetchRequest()) == 0)
+        #expect(group.isSettled)
+        #expect(group.totalSpent == .zero)
+    }
+
+    /// The model nullifies `paidBy`, which would leave a payer-less expense
+    /// that `Expense.entry` silently drops — the money would vanish from the
+    /// split without ever appearing as a deletion.
+    @Test("Deleting a member also deletes the expenses they paid for")
+    func deleteMemberRemovesTheirExpenses() throws {
+        let context = Self.makeContext()
+        let store = GroupStore(context: context)
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        try store.addExpense(
+            title: "Dinner",
+            amount: Money(amount: 30.00),
+            paidBy: alice,
+            splitAmong: [alice, bob],
+            in: group
+        )
+        try store.addExpense(
+            title: "Taxi",
+            amount: Money(amount: 10.00),
+            paidBy: bob,
+            splitAmong: [alice, bob],
+            in: group
+        )
+
+        try store.delete(alice)
+
+        // Alice's dinner is gone; Bob's taxi survives.
+        #expect(try context.count(for: Expense.fetchRequest()) == 1)
+        #expect(group.totalSpent == Money(cents: 1000))
+
+        // Bob paid 10.00 and is now the only member, so nobody owes anybody.
+        #expect(group.roster.map(\.name) == ["Bob"])
+        #expect(group.isSettled)
+    }
+
+    // MARK: - Derived summaries
+
+    @Test("Total spent adds up every expense regardless of who paid")
+    func totalSpent() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        try store.addExpense(
+            title: "Dinner", amount: Money(amount: 30.00),
+            paidBy: alice, splitAmong: [alice, bob], in: group
+        )
+        try store.addExpense(
+            title: "Taxi", amount: Money(amount: 12.50),
+            paidBy: bob, splitAmong: [alice, bob], in: group
+        )
+
+        #expect(group.totalSpent == Money(cents: 4250))
+        #expect(!group.isSettled)
+    }
+
+    @Test("A group with no expenses reads as settled")
+    func emptyGroupIsSettled() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        try store.addMember(named: "Alice", to: group)
+
+        #expect(group.isSettled)
+        #expect(group.totalSpent == .zero)
+    }
+
     // MARK: - Balances through the bridge
 
     @Test("A split expense produces the balances the detail screen shows")

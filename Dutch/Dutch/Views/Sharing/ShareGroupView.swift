@@ -66,8 +66,15 @@ struct ShareGroupView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: 250, maxHeight: 250)
-                        .padding()
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        .padding(20)
+                        // Deliberately white in both appearances, and not a
+                        // semantic background: the generator emits black on
+                        // white regardless of colour scheme, and a scanner
+                        // needs that light quiet zone around the code. Swapping
+                        // this for `systemBackground` would break scanning in
+                        // dark mode while looking like a fix.
+                        .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
                         .accessibilityLabel("QR code to join \(group.name ?? "this group")")
                 } else {
                     ContentUnavailableView(
@@ -78,17 +85,25 @@ struct ShareGroupView: View {
                 }
 
                 if let sequence = group.wordSequence {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 8) {
+                        // This is the confirmation channel — the thing two
+                        // people read to each other to be sure they joined the
+                        // same group — so it gets the weight of a heading
+                        // rather than sitting a step below the QR caption.
                         Text(sequence)
-                            .font(.title2)
-                            .fontWeight(.medium)
+                            .font(.title.weight(.semibold))
                             .monospaced()
                             .textSelection(.enabled)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(.regularMaterial, in: Capsule())
 
                         Text("Check this matches on the other device.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .padding(.horizontal)
                 }
 
                 Button {

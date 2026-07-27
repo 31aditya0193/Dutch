@@ -1,24 +1,12 @@
 {
-  "fill" : {
-    "linear-gradient" : [
-      "display-p3:0.23137,0.90196,0.70588,1.00000",
-      "srgb:0.06667,0.37647,0.96078,1.00000"
-    ],
-    "orientation" : {
-      "start" : {
-        "x" : 0.5,
-        "y" : 0
-      },
-      "stop" : {
-        "x" : 0.5,
-        "y" : 0.7
-      }
-    }
-  },
+  "fill" : "automatic",
   "groups" : [
     {
       "layers" : [
         {
+          "fill" : {
+            "solid" : "display-p3:0.25882,0.94510,0.74510,1.00000"
+          },
           "image-name" : "share-small.svg",
           "name" : "share-small",
           "position" : {
@@ -44,6 +32,9 @@
     {
       "layers" : [
         {
+          "fill" : {
+            "solid" : "display-p3:0.38431,0.64706,1.00000,1.00000"
+          },
           "image-name" : "share-large.svg",
           "name" : "share-large",
           "position" : {
@@ -68,6 +59,9 @@
     {
       "layers" : [
         {
+          "fill" : {
+            "solid" : "srgb:0.45490,0.56863,0.95686,1.00000"
+          },
           "image-name" : "ring.svg",
           "name" : "ring"
         }

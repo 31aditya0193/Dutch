@@ -150,6 +150,7 @@ extension PersistenceController {
         group.name = "Berlin Trip"
         group.wordSequence = "green-moon-tea"
         group.creationDate = Date()
+        group.currencyCode = "EUR"
 
         let alice = Person(context: context)
         alice.id = UUID()

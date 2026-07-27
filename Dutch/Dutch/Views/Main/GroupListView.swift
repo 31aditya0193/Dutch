@@ -1,4 +1,5 @@
 import CoreData
+import DutchKit
 import SwiftUI
 
 /// Main screen showing all expense groups — both the user's own and any that
@@ -8,37 +9,53 @@ struct GroupListView: View {
 
     /// Reads go through `@FetchRequest` so changes synced down from CloudKit
     /// refresh the list on their own, with no manual reload.
+    ///
+    /// The spring is deliberate: `.default` is an ease, which reads as
+    /// mechanical when a row arrives from a sync the user didn't initiate.
     @FetchRequest(
         sortDescriptors: [SortDescriptor(\ExpenseGroup.creationDate, order: .reverse)],
-        animation: .default
+        animation: .spring(response: 0.35, dampingFraction: 0.8)
     )
     private var groups: FetchedResults<ExpenseGroup>
 
+    /// Path-based navigation so creating a group can push straight into it.
+    @State private var path: [ExpenseGroup] = []
     @State private var showingNewGroup = false
     @State private var showingJoinGroup = false
-    @State private var newGroupName = ""
     @State private var errorMessage: String?
+    /// Held until the sheet has finished dismissing — pushing onto the path
+    /// while a sheet is still on screen is a reliable way to have the push
+    /// silently swallowed.
+    @State private var groupToOpen: ExpenseGroup?
 
     private var store: GroupStore { GroupStore(context: context) }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
+                ForEach(groups) { group in
+                    NavigationLink(value: group) {
+                        GroupRow(group: group)
+                    }
+                }
+                .onDelete(perform: delete)
+            }
+            .navigationDestination(for: ExpenseGroup.self) { group in
+                GroupDetailView(group: group)
+            }
+            // Outside the List, so the empty state centres on the screen
+            // instead of inside a single inset row with a separator under it.
+            .overlay {
                 if groups.isEmpty {
                     ContentUnavailableView {
                         Label("No Groups", systemImage: "rectangle.3.group")
                     } description: {
                         Text("Create a group to start splitting expenses, or join one with a QR code.")
+                    } actions: {
+                        // An empty state without a next action is a dead end.
+                        Button("Create a Group") { showingNewGroup = true }
+                            .buttonStyle(.borderedProminent)
                     }
-                } else {
-                    ForEach(groups) { group in
-                        NavigationLink {
-                            GroupDetailView(group: group)
-                        } label: {
-                            GroupRow(group: group)
-                        }
-                    }
-                    .onDelete(perform: delete)
                 }
             }
             .navigationTitle("Dutch")
@@ -58,43 +75,32 @@ struct GroupListView: View {
                     }
                 }
             }
-            .alert("New Group", isPresented: $showingNewGroup) {
-                TextField("Group Name", text: $newGroupName)
-                Button("Cancel", role: .cancel) { newGroupName = "" }
-                Button("Create", action: createGroup)
-            } message: {
-                Text("Enter a name for your new expense group.")
+            .sheet(isPresented: $showingNewGroup, onDismiss: openPendingGroup) {
+                NewGroupSheet(onCreate: createGroup)
             }
             .sheet(isPresented: $showingJoinGroup) {
                 JoinGroupView()
             }
-            .alert("Something Went Wrong", isPresented: errorBinding) {
-                Button("OK", role: .cancel) { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
+            .errorBanner($errorMessage)
         }
-    }
-
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )
     }
 
     // MARK: - Actions
 
-    private func createGroup() {
-        let trimmed = newGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
-        newGroupName = ""
-        guard !trimmed.isEmpty else { return }
-
+    private func createGroup(named name: String, currencyCode: String) {
         do {
-            try store.createGroup(named: trimmed)
+            groupToOpen = try store.createGroup(named: name, currencyCode: currencyCode)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// A new group is empty and useless until it has members, so drop the user
+    /// into it rather than leaving them on a list to tap the row they just made.
+    private func openPendingGroup() {
+        guard let group = groupToOpen else { return }
+        groupToOpen = nil
+        path = [group]
     }
 
     private func delete(at offsets: IndexSet) {
@@ -114,6 +120,33 @@ private struct GroupRow: View {
     @ObservedObject var group: ExpenseGroup
 
     var body: some View {
+        // Evaluated once per render rather than per reference — each of these
+        // walks the group's expenses.
+        let total = group.totalSpent
+        let pendingTransfers = group.transfers.count
+        let memberCount = group.members?.count ?? 0
+        let expenseCount = group.expenses?.count ?? 0
+
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                identity(memberCount: memberCount, expenseCount: expenseCount)
+                Spacer(minLength: 12)
+                money(total: total, pending: pendingTransfers, alignment: .trailing)
+            }
+
+            // Once names, currency and type size stop sharing a line, stack
+            // rather than truncate.
+            VStack(alignment: .leading, spacing: 8) {
+                identity(memberCount: memberCount, expenseCount: expenseCount)
+                money(total: total, pending: pendingTransfers, alignment: .leading)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private func identity(memberCount: Int, expenseCount: Int) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(group.name ?? "Unnamed")
@@ -134,14 +167,36 @@ private struct GroupRow: View {
                     .monospaced()
             }
 
-            HStack {
-                Label("\(group.members?.count ?? 0)", systemImage: "person")
-                Label("\(group.expenses?.count ?? 0)", systemImage: "receipt")
+            // Both glyphs filled, both labelled: the old row mixed
+            // `person.2.fill` with an outline `person` in the same group, and
+            // read to VoiceOver as two bare numbers.
+            HStack(spacing: 12) {
+                Label("\(memberCount)", systemImage: "person.2.fill")
+                    .accessibilityLabel("\(memberCount) members")
+                Label("\(expenseCount)", systemImage: "list.bullet.rectangle.fill")
+                    .accessibilityLabel("\(expenseCount) expenses")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            .symbolRenderingMode(.hierarchical)
         }
-        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func money(total: Money, pending: Int, alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 2) {
+            Text(total.formatted(in: group))
+                .font(.headline)
+                .monospacedDigit()
+                // The total changes whenever anyone adds an expense, including
+                // from another device — roll the digits so it's visible.
+                .contentTransition(.numericText())
+
+            Text(pending == 0 ? "Settled up" : "\(pending) to settle")
+                .font(.caption2)
+                .foregroundStyle(pending == 0 ? .secondary : .primary)
+        }
+        .animation(.snappy, value: total)
     }
 }
 
