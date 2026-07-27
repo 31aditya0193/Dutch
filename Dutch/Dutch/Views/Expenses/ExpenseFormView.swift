@@ -2,6 +2,25 @@ import SwiftUI
 import CoreData
 import DutchKit
 
+/// What a member pays, as a percentage of a full share.
+///
+/// Relative and deliberately not a division of the bill: the percentages across
+/// a split do not add up to 100, and are not meant to. Six people with one
+/// 51%-off fare is `100 × 5` and `49`, which comes to 549%.
+private enum Share {
+    /// A full share, and where every member starts.
+    static let full = 100
+
+    /// Offered in the menu. Halves cover a couple sharing a hotel room and
+    /// children at half price, which between them are most of what an uneven
+    /// split is ever for; anything else goes through "Other…".
+    static let presets = [100, 75, 50, 25]
+
+    /// 200% is somebody eating for two. Below 1% a share rounds to nothing on
+    /// any realistic bill, and 0 is what deselecting the row already means.
+    static let range = 1 ... 200
+}
+
 /// Sheet for adding a new expense to a group, or correcting an existing one.
 ///
 /// One form for both, deliberately. The alternative the app used to force was
@@ -31,10 +50,18 @@ struct ExpenseFormView: View {
     @State private var rateText: String
     @State private var selectedPayer: Person?
     @State private var selectedParticipants: Set<Person> = []
-    /// Weight per member, used only while `splitsEvenly` is off. A member with
-    /// no entry counts as one share.
+    /// What each member pays as a percentage of a full share, used only while
+    /// `splitsEvenly` is off. A member with no entry pays a full 100%.
+    ///
+    /// Relative, not a division of the bill: these do not add up to 100. Six
+    /// people, one of them on a 51%-off fare, is five entries of `100` and one
+    /// of `49` — which sums to 549% and is exactly right. Nothing shows the
+    /// user that total; the rows show złoty amounts, and those do add up.
     @State private var shares: [Person: Int] = [:]
     @State private var splitsEvenly: Bool
+    /// The member whose share is being typed in by hand, and the text of it.
+    @State private var customTarget: Person?
+    @State private var customText = ""
     @State private var errorMessage: String?
     @FocusState private var titleFocused: Bool
 
@@ -188,6 +215,14 @@ struct ExpenseFormView: View {
             // One haptic per change to the selection as a whole. Per-row
             // feedback would fire six times at once on "Everyone".
             .sensoryFeedback(.selection, trigger: selectedParticipants)
+            .alert("Custom Share", isPresented: customBinding) {
+                TextField("Percent", text: $customText)
+                    .keyboardType(.numberPad)
+                Button("Cancel", role: .cancel) { customTarget = nil }
+                Button("Set", action: applyCustomShare)
+            } message: {
+                Text("Percent of a full share, 1 to 200. A fare with 51% off is 49.")
+            }
             .errorBanner($errorMessage)
             .task {
                 // Only when adding. Opening the keyboard on an edit puts a
@@ -315,13 +350,14 @@ struct ExpenseFormView: View {
                         share: splitsEvenly ? nil : share(for: member),
                         slice: slices[member].map { $0.formatted(in: group) },
                         onTap: { toggle(member) },
-                        onShareChange: { shares[member] = $0 }
+                        onShareChange: { shares[member] = $0 },
+                        onCustomShare: { beginCustomShare(for: member) }
                     )
                 }
 
                 // Disabled below two people because there is nothing to weight
-                // — one sharer takes the whole amount at any share count.
-                Toggle("Split by shares", isOn: sharesBinding)
+                // — a lone sharer takes the whole amount at any percentage.
+                Toggle("Uneven split", isOn: sharesBinding)
                     .disabled(selectedParticipants.count < 2)
             }
         } header: {
@@ -346,7 +382,12 @@ struct ExpenseFormView: View {
                 // how you record paying purely on someone else's behalf.
                 Text("Include whoever shares the cost. Leave the payer out if they were covering it for others.")
             } else {
-                Text("Shares are relative: 2× pays twice what 1× pays — the room two people share against the single.")
+                // Says outright that the percentages don't add up to 100,
+                // because they don't — six people with one 51%-off fare comes
+                // to 549%. Without this the first reaction to that is that the
+                // app is broken, so the sentence points at the amounts, which
+                // *do* add up, as the thing to trust.
+                Text("100% is a full share — a 51%-off fare is 49%, and two people sharing one hotel room are 50% each. The amounts beside each name always add up to the total.")
             }
         }
     }
@@ -373,7 +414,37 @@ struct ExpenseFormView: View {
 
     private func share(for member: Person) -> Int? {
         guard selectedParticipants.contains(member) else { return nil }
-        return shares[member] ?? 1
+        return shares[member] ?? Share.full
+    }
+
+    // MARK: - Typing in a share
+
+    private func beginCustomShare(for member: Person) {
+        customText = String(share(for: member) ?? Share.full)
+        customTarget = member
+    }
+
+    private var customBinding: Binding<Bool> {
+        Binding(
+            get: { customTarget != nil },
+            set: { if !$0 { customTarget = nil } }
+        )
+    }
+
+    /// Clamped rather than rejected. A stray extra digit is far likelier than
+    /// a genuine 1000% share, and refusing the whole entry would throw away a
+    /// number the user has just typed.
+    private func applyCustomShare() {
+        defer { customTarget = nil }
+
+        guard
+            let member = customTarget,
+            let typed = Int(customText.trimmingCharacters(in: .whitespaces))
+        else { return }
+
+        withAnimation(.snappy) {
+            shares[member] = min(max(typed, Share.range.lowerBound), Share.range.upperBound)
+        }
     }
 
     /// Turning shares off discards the weighting rather than hiding it. A
@@ -422,7 +493,7 @@ struct ExpenseFormView: View {
 
         return selectedParticipants.reduce(into: [:]) { result, member in
             if let id = member.id {
-                result[id] = shares[member] ?? 1
+                result[id] = shares[member] ?? Share.full
             }
         }
     }
@@ -574,13 +645,14 @@ struct ExpenseFormView: View {
 private struct MemberSplitRow: View {
     let name: String
     let isSelected: Bool
-    /// The member's weight, or `nil` when the split is even and no stepper
-    /// should appear at all.
+    /// The member's percentage of a full share, or `nil` when the split is even
+    /// and no control should appear at all.
     let share: Int?
     /// What this member will be charged, once there is an amount to divide.
     let slice: String?
     let onTap: () -> Void
     let onShareChange: (Int) -> Void
+    let onCustomShare: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -620,17 +692,40 @@ private struct MemberSplitRow: View {
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
 
             if isSelected, let share {
-                Stepper(
-                    value: Binding(get: { share }, set: onShareChange),
-                    in: 1 ... 20
-                ) {
-                    Text("\(share)×")
+                // A menu, not a stepper or a slider. The two cases this exists
+                // for are a couple sharing a room (50%) and a discounted fare
+                // (49%): the first is one tap here, and the second is a number
+                // no thumb can land on with a slider and no one wants to reach
+                // by tapping a stepper 51 times.
+                Menu {
+                    ForEach(Share.presets, id: \.self) { preset in
+                        Button {
+                            onShareChange(preset)
+                        } label: {
+                            if preset == share {
+                                Label("\(preset)%", systemImage: "checkmark")
+                            } else {
+                                Text("\(preset)%")
+                            }
+                        }
+                    }
+                    Divider()
+                    Button("Other…", action: onCustomShare)
+                } label: {
+                    Text("\(share)%")
                         .font(.callout.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(share == Share.full ? Color.secondary : Color.accentColor)
                         .contentTransition(.numericText())
+                        // Padding, not a frame: the tappable area has to clear
+                        // 44pt without the text jumping around as it goes from
+                        // "50%" to "100%".
+                        .padding(.vertical, 12)
+                        .padding(.leading, 8)
+                        .contentShape(Rectangle())
                 }
-                .fixedSize()
-                .accessibilityLabel("Shares for \(name)")
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Share for \(name)")
+                .accessibilityValue("\(share) percent of a full share")
             }
         }
     }

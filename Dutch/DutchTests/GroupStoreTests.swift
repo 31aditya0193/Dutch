@@ -396,6 +396,47 @@ struct GroupStoreTests {
         #expect(bobBalance.amount == Money(cents: -3000))
     }
 
+    /// The whole path a real split takes: percentages written by the form,
+    /// through the JSON overlay, back out of the bridge and into balances.
+    ///
+    /// Wrocław → Trzcińsko: 145.01 zł, six people, one student fare at 51% off.
+    @Test("A discounted fare divides correctly end to end")
+    func discountedFareThroughTheStore() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Trzcińsko", currencyCode: "PLN")
+
+        let names = ["Ala", "Bartek", "Celina", "Darek", "Ewa"]
+        let travellers = try names.map { try store.addMember(named: $0, to: group) }
+        let student = try store.addMember(named: "Franek", to: group)
+
+        var shares: [UUID: Int] = [:]
+        for traveller in travellers {
+            shares[try #require(traveller.id)] = 100
+        }
+        shares[try #require(student.id)] = 49
+
+        try store.addExpense(
+            title: "Bilety",
+            amount: Money(cents: 14501),
+            paidBy: travellers[0],
+            splitAmong: Set(travellers + [student]),
+            in: group,
+            shares: shares
+        )
+
+        let balances = group.balances
+        let studentBalance = try #require(balances.first { $0.participant.name == "Franek" })
+        #expect(studentBalance.amount == Money(cents: -1294))
+
+        // The buyer fronted the lot, so they are owed everything but their own
+        // share of it.
+        let buyerBalance = try #require(balances.first { $0.participant.name == "Ala" })
+        #expect(buyerBalance.amount == Money(cents: 14501) - Money(cents: 2642))
+
+        // Nothing lost to rounding across six people and a 49% share.
+        #expect(balances.reduce(Money.zero) { $0 + $1.amount } == .zero)
+    }
+
     /// A uniform weighting is an even split, and storing it as one keeps the
     /// ordinary expense identical to what it was before weights existed —
     /// which is what a client on the old model will read it as.

@@ -52,14 +52,28 @@ rather than an expense, and so it stays out of Total Spent.
 
 ### 3. Unequal splits
 
-Equal-only is the ceiling on real use: the hotel room two people share, the one
-who didn't drink. Modelled as **integer shares** (1×, 2×) rather than percentages
-or exact amounts, because shares stay exact — `Money.split` already distributes
-the remainder rather than dropping it, and weighting it preserves that guarantee.
+Equal-only is the ceiling on real use. Two cases from one real trip:
 
-Stored as a weight overlay keyed by person, with `splitAmong` still authoritative
-for *who* is in the split. Absent weights mean an even split, so every existing
-expense keeps reading exactly as it did.
+- a train ticket where one of six people has a 51% student discount;
+- a hotel for six — two couples in two rooms, two people in singles — where all
+  four rooms cost the same and each half of a couple should pay half a room.
+
+Both are the same operation: **what someone pays relative to a full share**. So
+the control is a percentage, 100% by default, set per expense from a menu of
+100 / 75 / 50 / 25 with a typed value for anything else. The discount is a fact
+about *the ticket*, not about the person — a student pays full price for beer —
+so this lives on the expense and nowhere else.
+
+Percent rather than a multiplier because reductions are the common case: 50% for
+a couple, 49% for a discounted fare. `0.49×` cannot even be typed into a stepper.
+
+The percentages across a split do not add up to 100 and are not meant to — six
+people with one discounted fare comes to 549%. Nothing in the UI shows that
+total; the rows show amounts in the group's currency, and those do add up.
+
+Stored as an integer weight overlay keyed by person, with `splitAmong` still
+authoritative for *who* is in the split. Absent weights mean an even split, so
+every existing expense keeps reading exactly as it did.
 
 *Cost: one optional String. Model v3, shared with item 2. Logic lives in DutchKit
 and is testable without a simulator.*
@@ -120,7 +134,21 @@ Groups the expense list and costs nothing in the bundle.
 Trips end; the list never shrinks. One optional Date and a filtered
 `@FetchRequest`.
 
-### 11. Spotlight indexing
+### 11. Exact amounts in a split
+
+The one thing percentages can't express: "Ania pays exactly 23.50, divide the
+rest between the rest of us." It comes up with itemised restaurant bills, where
+the receipt already lists the numbers and turning them into percentages is the
+arithmetic this app exists to remove.
+
+Deliberately separate from item 3 rather than folded into the same control. A
+percentage and an amount answer different questions, and one field trying to be
+both — is `50` half a share or fifty złoty? — would be worse than either. It
+also breaks the invariant that the parts sum to the whole: exact amounts need a
+running remainder shown on screen and a rule for what happens when they overrun
+the total.
+
+### 12. Spotlight indexing
 
 Groups and expenses searchable from the home screen via `CoreSpotlight`. System
 framework, small integration, and it makes a five-second app reachable in two.

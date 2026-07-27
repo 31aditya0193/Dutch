@@ -64,11 +64,13 @@ public struct Money: Hashable, Sendable, Comparable, AdditiveArithmetic {
     /// Divides the amount in proportion to `weights`, summing back to exactly
     /// `self`.
     ///
-    /// Shares, not percentages or exact amounts: two people sharing a room to
-    /// one person in a single are `[2, 1]`. Integer weights keep the split
-    /// exact — there is no rounding step where a percentage of a cent has to go
-    /// somewhere — and the guarantee that the parts reconstruct the whole is
-    /// the same one `split(into:)` makes.
+    /// Relative weights, not exact amounts. `[2, 1]` and `[100, 50]` mean the
+    /// same thing — the app passes percentages of a full share, so a train
+    /// ticket with one 51%-off fare is `[100, 100, 100, 100, 100, 49]` and two
+    /// couples sharing rooms against two people in singles is
+    /// `[50, 50, 50, 50, 100, 100]`. Integers keep the split exact: there is no
+    /// step where a percentage of a cent has to go somewhere, and the parts
+    /// reconstruct the whole exactly as they do in `split(into:)`.
     ///
     /// Leftover minor units go to the shares with the largest fractional
     /// remainder, ties broken by position. For equal weights every remainder is

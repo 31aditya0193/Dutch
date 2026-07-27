@@ -9,6 +9,8 @@ private enum Fixture {
     static let bob = Participant(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000B2")!, name: "Bob")
     static let carol = Participant(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000C3")!, name: "Carol")
     static let dave = Participant(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000D4")!, name: "Dave")
+    static let eve = Participant(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000E5")!, name: "Eve")
+    static let frank = Participant(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000F6")!, name: "Frank")
 
     static func expense(
         _ amount: Int,
@@ -273,6 +275,99 @@ struct WeightedSplitTests {
         #expect(amount(for: Fixture.alice, in: balances) == Money(cents: 500))
         #expect(amount(for: Fixture.bob, in: balances) == Money(cents: -500))
         #expect(amount(for: Fixture.carol, in: balances) == .zero)
+    }
+}
+
+// MARK: - Real cases
+
+/// The two splits the percentage control exists for, kept here as worked
+/// examples. Both were done by hand on a calculator first; these pin the
+/// answers so the arithmetic can't quietly drift away from them.
+@Suite("Real cases")
+struct RealCaseTests {
+
+    /// Wrocław → Trzcińsko, 145.01 zł for six people, one of them on a
+    /// student fare at 51% off. Everyone else pays a full share, so the
+    /// weights are five hundreds and a forty-nine.
+    @Test("A train ticket with one discounted fare")
+    func discountedFare() {
+        let full = Share.hundred
+        let shares: [Participant.ID: Int] = [
+            Fixture.alice.id: full, Fixture.bob.id: full, Fixture.carol.id: full,
+            Fixture.dave.id: full, Fixture.eve.id: full,
+            Fixture.frank.id: 49,
+        ]
+
+        let slices = SettlementCalculator.slices(of: Money(cents: 14501), among: shares)
+        let byParticipant = Dictionary(
+            slices.map { ($0.participant, $0.amount) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        // The student pays 12.94; the two stray grosze go to the largest
+        // remainders, which here are the full fares.
+        #expect(byParticipant[Fixture.frank.id] == Money(cents: 1294))
+        #expect(byParticipant[Fixture.alice.id] == Money(cents: 2642))
+        #expect(byParticipant[Fixture.bob.id] == Money(cents: 2642))
+        #expect(byParticipant[Fixture.carol.id] == Money(cents: 2641))
+        #expect(byParticipant[Fixture.dave.id] == Money(cents: 2641))
+        #expect(byParticipant[Fixture.eve.id] == Money(cents: 2641))
+
+        #expect(slices.reduce(Money.zero) { $0 + $1.amount } == Money(cents: 14501))
+    }
+
+    /// A hotel for six: two couples in two rooms, two people in singles. Four
+    /// rooms, so four full shares — each half of a couple is 50%, and the four
+    /// rooms come out at the same price.
+    @Test("A hotel split between couples and singles")
+    func couplesAndSingles() {
+        let half = 50
+        let full = Share.hundred
+        let shares: [Participant.ID: Int] = [
+            Fixture.alice.id: half, Fixture.bob.id: half,
+            Fixture.carol.id: half, Fixture.dave.id: half,
+            Fixture.eve.id: full, Fixture.frank.id: full,
+        ]
+
+        let slices = SettlementCalculator.slices(of: Money(cents: 80000), among: shares)
+        let byParticipant = Dictionary(
+            slices.map { ($0.participant, $0.amount) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        // 800.00 over four rooms is 200.00 a room, however many people are in it.
+        #expect(byParticipant[Fixture.alice.id] == Money(cents: 10000))
+        #expect(byParticipant[Fixture.bob.id] == Money(cents: 10000))
+        #expect(byParticipant[Fixture.eve.id] == Money(cents: 20000))
+        #expect(byParticipant[Fixture.frank.id] == Money(cents: 20000))
+
+        let firstRoom = (byParticipant[Fixture.alice.id] ?? .zero) + (byParticipant[Fixture.bob.id] ?? .zero)
+        #expect(firstRoom == byParticipant[Fixture.eve.id])
+        #expect(slices.reduce(Money.zero) { $0 + $1.amount } == Money(cents: 80000))
+    }
+
+    /// Percentages are relative, so the same split can be written with any
+    /// scale. This is what lets the form store "everyone at 100%" as no
+    /// weighting at all.
+    @Test("A full share is whatever number every share agrees on")
+    func scaleIsArbitrary() {
+        let asPercent = SettlementCalculator.slices(
+            of: Money(cents: 9000),
+            among: [Fixture.alice.id: 100, Fixture.bob.id: 50]
+        )
+        let asShares = SettlementCalculator.slices(
+            of: Money(cents: 9000),
+            among: [Fixture.alice.id: 2, Fixture.bob.id: 1]
+        )
+
+        #expect(asPercent.map(\.amount) == asShares.map(\.amount))
+        #expect(asPercent.map(\.amount) == [Money(cents: 6000), Money(cents: 3000)])
+    }
+
+    private enum Share {
+        /// Spelled out rather than written as a bare `100` at every call site,
+        /// so the examples read as "a full share" and not as a magic number.
+        static let hundred = 100
     }
 }
 

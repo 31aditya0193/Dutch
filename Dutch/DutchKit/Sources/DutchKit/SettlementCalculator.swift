@@ -21,9 +21,11 @@ public struct ExpenseEntry: Hashable, Sendable {
     public let payer: Participant.ID
     /// How the cost divides, as a weight per participant.
     ///
-    /// A weight of `1` each is an even split; `[alice: 2, bob: 1]` gives Alice
-    /// two thirds. Weights are relative, so `[2, 2]` and `[1, 1]` mean the same
-    /// thing — what matters is the ratio between them.
+    /// Weights are relative: `[2, 2]` and `[1, 1]` are both even splits, and
+    /// `[alice: 2, bob: 1]` gives Alice two thirds. The app expresses them as
+    /// percentages of a full share — `100` for most people, `49` for a fare
+    /// with 51% off, `50` for each half of a couple sharing one hotel room —
+    /// but nothing here depends on that reading.
     ///
     /// Include the payer here when they also consumed part of the expense.
     /// Leave them out when they paid purely on someone else's behalf — the
