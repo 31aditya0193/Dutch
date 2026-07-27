@@ -2,17 +2,27 @@ import SwiftUI
 import CoreData
 import DutchKit
 
-/// Sheet for adding a new expense to a group.
-struct AddExpenseView: View {
+/// Sheet for adding a new expense to a group, or correcting an existing one.
+///
+/// One form for both, deliberately. The alternative the app used to force was
+/// delete-and-re-enter, which on a shared group means everyone else watches an
+/// expense vanish and reappear over CloudKit — and gives them a window in which
+/// the balances are simply wrong.
+struct ExpenseFormView: View {
     let group: ExpenseGroup
+
+    /// The expense being corrected, or `nil` when adding a new one. Everything
+    /// that differs between the two modes reads from this.
+    private let editing: Expense?
+
     @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
 
-    @State private var title = ""
+    @State private var title: String
     /// Held as text rather than a `Double` so the field can start genuinely
     /// empty. Bound to a number it showed a literal `0` that `isValid` then
     /// rejected — a form that looks filled in and refuses to save.
-    @State private var amountText = ""
+    @State private var amountText: String
     /// The currency the amount is being *entered* in, which is not necessarily
     /// the one the group settles in.
     @State private var currencyCode: String
@@ -21,23 +31,31 @@ struct AddExpenseView: View {
     @State private var rateText: String
     @State private var selectedPayer: Person?
     @State private var selectedParticipants: Set<Person> = []
+    /// Weight per member, used only while `splitsEvenly` is off. A member with
+    /// no entry counts as one share.
+    @State private var shares: [Person: Int] = [:]
+    @State private var splitsEvenly: Bool
     @State private var errorMessage: String?
     @FocusState private var titleFocused: Bool
 
-    /// Seeds every selection from the state the form would otherwise make the
-    /// user re-enter on each expense.
+    /// A new expense, with every selection seeded from the state the form would
+    /// otherwise make the user re-enter on each one.
     ///
     /// Done in `init` rather than `.task` so the sheet is never briefly drawn
     /// with nothing selected, and so a later re-render can't re-seed over an
     /// edit in progress — `@State` keeps the value from first construction.
     init(group: ExpenseGroup) {
         self.group = group
+        self.editing = nil
 
         let roster = Self.roster(of: group)
         // Splitting across everyone is what the app is for; "nobody" was never
         // a useful starting point, and cost a tap per member to escape.
         _selectedParticipants = State(initialValue: Set(roster))
         _selectedPayer = State(initialValue: ExpenseDefaults.lastPayer(in: group, among: roster))
+        _title = State(initialValue: "")
+        _amountText = State(initialValue: "")
+        _splitsEvenly = State(initialValue: true)
 
         // Mid-trip, the next expense is almost always in the same currency as
         // the last one, at the same rate. Entering ten Polish receipts should
@@ -47,18 +65,72 @@ struct AddExpenseView: View {
         _rateText = State(initialValue: Self.rateText(for: currency, in: group))
     }
 
-    /// The remembered rate for a currency, as the text field wants it.
+    /// An existing expense, seeded from what was recorded rather than from the
+    /// device's defaults.
+    ///
+    /// A foreign expense reopens in the currency it was *entered* in, not the
+    /// group's. The stored `amount` is the converted figure, so showing that as
+    /// the starting point would mean someone who came to fix a typo in the
+    /// title saves a euro total back into a złoty field.
+    init(editing expense: Expense, in group: ExpenseGroup) {
+        self.group = group
+        self.editing = expense
+
+        _title = State(initialValue: expense.title ?? "")
+        _selectedPayer = State(initialValue: expense.paidBy)
+        _selectedParticipants = State(initialValue: (expense.splitAmong as? Set<Person>) ?? [])
+
+        if let foreign = expense.foreignAmount {
+            _currencyCode = State(initialValue: foreign.currencyCode)
+            _amountText = State(initialValue: Self.decimalText(foreign.amount))
+            _rateText = State(initialValue: Self.decimalText(foreign.rate, precision: 6))
+        } else {
+            _currencyCode = State(initialValue: group.currency)
+            _amountText = State(initialValue: Self.decimalText(expense.amount))
+            _rateText = State(initialValue: "")
+        }
+
+        // An expense with no stored weighting is an even split, and a uniform
+        // weighting is stored as none at all — so the toggle starts on exactly
+        // when there is something uneven to show.
+        let weights = expense.shareWeights
+        _splitsEvenly = State(initialValue: weights.isEmpty)
+        _shares = State(initialValue: Self.shares(from: weights, in: group))
+    }
+
+    // MARK: - Seeding
+
+    private var isEditing: Bool { editing != nil }
+
+    /// Weights come back keyed by id; the form works in `Person`, which is what
+    /// the rows and the selection are built from.
+    private static func shares(from weights: [UUID: Int], in group: ExpenseGroup) -> [Person: Int] {
+        guard !weights.isEmpty else { return [:] }
+
+        return roster(of: group).reduce(into: [:]) { result, member in
+            if let id = member.id, let weight = weights[id] {
+                result[member] = weight
+            }
+        }
+    }
+
+    /// Formats a stored value for a text field.
     ///
     /// Grouping separators are suppressed deliberately: they would come back in
-    /// through `parsedRate` as a stray `4 411` and turn a prefilled rate into a
-    /// silently wrong one.
+    /// through `parseDecimal` as a stray `4 411` and turn a prefilled figure
+    /// into a silently wrong one.
+    private static func decimalText(_ value: Double, precision: Int = 2) -> String {
+        value.formatted(.number.precision(.fractionLength(0 ... precision)).grouping(.never))
+    }
+
+    /// The remembered rate for a currency, as the text field wants it.
     private static func rateText(for currencyCode: String, in group: ExpenseGroup) -> String {
         guard
             currencyCode != group.currency,
             let rate = ExpenseDefaults.lastRate(in: group, currencyCode: currencyCode)
         else { return "" }
 
-        return rate.formatted(.number.precision(.fractionLength(0 ... 6)).grouping(.never))
+        return decimalText(rate, precision: 6)
     }
 
     private var store: GroupStore { GroupStore(context: context) }
@@ -71,21 +143,31 @@ struct AddExpenseView: View {
     }
 
     var body: some View {
+        // Taken once and passed down. Read as a computed property this would be
+        // recomputed at every mention — and this form mentions it once per
+        // member row, each pass sorting the sharers and re-splitting the whole
+        // amount.
+        let slices = slicePreview
+
         NavigationStack {
             Form {
                 detailsSection
                 paidBySection
-                splitAmongSection
+                splitAmongSection(slices)
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Add Expense")
+            .navigationTitle(isEditing ? "Edit Expense" : "Add Expense")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Save", action: saveExpense)
+                    // "Save" in both modes. The title above already says which
+                    // one this is, and the UI tests reach for this button by
+                    // name — a label that changes with the mode would make the
+                    // add flow's assertions depend on state they never set.
+                    Button("Save", action: save)
                         .disabled(!isValid)
                 }
             }
@@ -107,7 +189,11 @@ struct AddExpenseView: View {
             // feedback would fire six times at once on "Everyone".
             .sensoryFeedback(.selection, trigger: selectedParticipants)
             .errorBanner($errorMessage)
-            .task { titleFocused = true }
+            .task {
+                // Only when adding. Opening the keyboard on an edit puts a
+                // cursor in a title the user most likely came to keep.
+                titleFocused = !isEditing
+            }
         }
     }
 
@@ -216,20 +302,27 @@ struct AddExpenseView: View {
         }
     }
 
-    private var splitAmongSection: some View {
+    private func splitAmongSection(_ slices: [Person: Money]) -> some View {
         Section {
             if members.isEmpty {
                 Text("Add members first.")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(members, id: \.objectID) { member in
-                    MemberToggleRow(
+                    MemberSplitRow(
                         name: member.name ?? "?",
-                        isSelected: selectedParticipants.contains(member)
-                    ) {
-                        toggle(member)
-                    }
+                        isSelected: selectedParticipants.contains(member),
+                        share: splitsEvenly ? nil : share(for: member),
+                        slice: slices[member].map { $0.formatted(in: group) },
+                        onTap: { toggle(member) },
+                        onShareChange: { shares[member] = $0 }
+                    )
                 }
+
+                // Disabled below two people because there is nothing to weight
+                // — one sharer takes the whole amount at any share count.
+                Toggle("Split by shares", isOn: sharesBinding)
+                    .disabled(selectedParticipants.count < 2)
             }
         } header: {
             HStack {
@@ -248,9 +341,13 @@ struct AddExpenseView: View {
                 }
             }
         } footer: {
-            // The payer is not added implicitly — leaving them out is
-            // how you record paying purely on someone else's behalf.
-            Text("Include whoever shares the cost. Leave the payer out if they were covering it for others.")
+            if splitsEvenly {
+                // The payer is not added implicitly — leaving them out is
+                // how you record paying purely on someone else's behalf.
+                Text("Include whoever shares the cost. Leave the payer out if they were covering it for others.")
+            } else {
+                Text("Shares are relative: 2× pays twice what 1× pays — the room two people share against the single.")
+            }
         }
     }
 
@@ -264,8 +361,68 @@ struct AddExpenseView: View {
         withAnimation(.snappy) {
             if selectedParticipants.contains(member) {
                 selectedParticipants.remove(member)
+                // Dropped rather than kept: a weight belonging to someone no
+                // longer in the split would reappear from nowhere if they were
+                // added back later.
+                shares[member] = nil
             } else {
                 selectedParticipants.insert(member)
+            }
+        }
+    }
+
+    private func share(for member: Person) -> Int? {
+        guard selectedParticipants.contains(member) else { return nil }
+        return shares[member] ?? 1
+    }
+
+    /// Turning shares off discards the weighting rather than hiding it. A
+    /// weighting that is invisible but still applied is the worst of both: the
+    /// form would say "even" while the balances disagreed.
+    private var sharesBinding: Binding<Bool> {
+        Binding(
+            get: { !splitsEvenly },
+            set: { wantsShares in
+                withAnimation(.snappy) {
+                    splitsEvenly = !wantsShares
+                    if !wantsShares { shares = [:] }
+                }
+            }
+        )
+    }
+
+    /// What each member will actually be charged, for the rows to show.
+    ///
+    /// Routed through `SettlementCalculator.slices` rather than divided here,
+    /// so the preview and the balance it becomes are the same arithmetic down
+    /// to the cent — including which member the leftover lands on.
+    private var slicePreview: [Person: Money] {
+        guard !splitsEvenly, let amount = finalAmount else { return [:] }
+
+        let weights = weightsByID
+        guard !weights.isEmpty else { return [:] }
+
+        let byID = Dictionary(
+            SettlementCalculator.slices(of: amount, among: weights)
+                .map { ($0.participant, $0.amount) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        return selectedParticipants.reduce(into: [:]) { result, member in
+            if let id = member.id, let slice = byID[id] {
+                result[member] = slice
+            }
+        }
+    }
+
+    /// The weighting as the store and the calculator want it. Empty while the
+    /// split is even, which is what leaves the stored expense unweighted.
+    private var weightsByID: [UUID: Int] {
+        guard !splitsEvenly else { return [:] }
+
+        return selectedParticipants.reduce(into: [:]) { result, member in
+            if let id = member.id {
+                result[id] = shares[member] ?? 1
             }
         }
     }
@@ -362,28 +519,51 @@ struct AddExpenseView: View {
 
     // MARK: - Save
 
-    private func saveExpense() {
+    private func save() {
         guard let payer = selectedPayer, let amount = finalAmount else { return }
         let foreign = foreignAmount
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let weights = weightsByID
 
         do {
-            try store.addExpense(
-                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                amount: amount,
-                paidBy: payer,
-                splitAmong: selectedParticipants,
-                in: group,
-                paidIn: foreign
-            )
-            ExpenseDefaults.rememberPayer(payer, in: group)
-            if let foreign {
-                ExpenseDefaults.remember(foreign, in: group)
+            if let editing {
+                try store.update(
+                    editing,
+                    title: trimmed,
+                    amount: amount,
+                    paidBy: payer,
+                    splitAmong: selectedParticipants,
+                    paidIn: foreign,
+                    shares: weights
+                )
             } else {
-                ExpenseDefaults.rememberHomeCurrency(in: group)
+                try store.addExpense(
+                    title: trimmed,
+                    amount: amount,
+                    paidBy: payer,
+                    splitAmong: selectedParticipants,
+                    in: group,
+                    paidIn: foreign,
+                    shares: weights
+                )
+                // Only when adding. An edit corrects something recorded
+                // earlier — often much earlier — and letting it rewrite "the
+                // last currency used" would prefill the next expense from a
+                // receipt two countries ago.
+                remember(payer: payer, foreign: foreign)
             }
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func remember(payer: Person, foreign: ForeignAmount?) {
+        ExpenseDefaults.rememberPayer(payer, in: group)
+        if let foreign {
+            ExpenseDefaults.remember(foreign, in: group)
+        } else {
+            ExpenseDefaults.rememberHomeCurrency(in: group)
         }
     }
 }
@@ -391,35 +571,72 @@ struct AddExpenseView: View {
 // MARK: - Member Row
 
 /// Extracted so the `Form` body stays small enough for the type checker.
-private struct MemberToggleRow: View {
+private struct MemberSplitRow: View {
     let name: String
     let isSelected: Bool
+    /// The member's weight, or `nil` when the split is even and no stepper
+    /// should appear at all.
+    let share: Int?
+    /// What this member will be charged, once there is an amount to divide.
+    let slice: String?
     let onTap: () -> Void
+    let onShareChange: (Int) -> Void
 
     var body: some View {
-        // A `Button`, not a tap gesture on a shape. To VoiceOver the old row
-        // was static text: no button trait, no selected state, nothing to
-        // activate. The empty circle matters too — an unselected member used
-        // to show nothing at all, so there was no cue the row was tappable.
-        Button(action: onTap) {
-            HStack {
-                Text(name)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 12)
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                    .imageScale(.large)
-                    .contentTransition(.symbolEffect(.replace))
+        HStack(spacing: 12) {
+            // A `Button`, not a tap gesture on a shape. To VoiceOver the old
+            // row was static text: no button trait, no selected state, nothing
+            // to activate. The empty circle matters too — an unselected member
+            // used to show nothing at all, so there was no cue the row was
+            // tappable.
+            Button(action: onTap) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(name)
+                            .foregroundStyle(.primary)
+
+                        // Only with an uneven split, where "2×" on its own
+                        // doesn't tell anyone what they are actually paying.
+                        if isSelected, let slice {
+                            Text(slice)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .contentTransition(.numericText())
+                        }
+                    }
+
+                    Spacer(minLength: 12)
+
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                        .imageScale(.large)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+
+            if isSelected, let share {
+                Stepper(
+                    value: Binding(get: { share }, set: onShareChange),
+                    in: 1 ... 20
+                ) {
+                    Text("\(share)×")
+                        .font(.callout.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
+                .fixedSize()
+                .accessibilityLabel("Shares for \(name)")
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
-#Preview {
-    AddExpenseView(group: PersistenceController.previewGroup)
+#Preview("Add") {
+    ExpenseFormView(group: PersistenceController.previewGroup)
         .environment(\.managedObjectContext, PersistenceController.preview.viewContext)
 }

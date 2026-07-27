@@ -17,17 +17,80 @@ extension Person {
 extension Expense {
     /// `nil` when the expense has no id or no payer, in which case it cannot
     /// contribute to a balance.
+    ///
+    /// Reimbursements map through here exactly like any other expense. A
+    /// payment from one member to another *is* an expense paid by the debtor
+    /// and shared by the creditor alone, so the calculator needs no notion of
+    /// settling — see `GroupStore.recordPayment`.
     var entry: ExpenseEntry? {
         guard let id, let payerID = paidBy?.id else { return nil }
 
         let sharers = (splitAmong as? Set<Person>)?.compactMap(\.id) ?? []
+        let weights = shareWeights
 
         return ExpenseEntry(
             id: id,
             amount: Money(amount: amount),
             payer: payerID,
-            sharedBetween: Set(sharers)
+            // Uniqued rather than trapping: two half-synced `Person` records
+            // can carry the same id, and `Dictionary(uniqueKeysWithValues:)`
+            // would abort the app rather than render a slightly stale split.
+            shares: Dictionary(
+                sharers.map { ($0, weights[$0] ?? 1) },
+                uniquingKeysWith: { first, _ in first }
+            )
         )
+    }
+}
+
+// MARK: - Share Weights
+
+extension Expense {
+    /// How the cost divides, as a weight per member — two shares for the couple
+    /// in the double room, one for whoever is in the single.
+    ///
+    /// An overlay, not the source of truth: `splitAmong` still decides *who* is
+    /// in the split, and this only says how much each of them takes. A member
+    /// with no entry here weighs `1`, so an expense saved before this existed —
+    /// or any ordinary even split — reads exactly as it always did.
+    ///
+    /// Stored as JSON in a string attribute rather than as its own entity. A
+    /// join entity would be the textbook shape, but it triples the record count
+    /// for a feature most expenses never use, and every one of those records
+    /// would sync separately.
+    var shareWeights: [UUID: Int] {
+        guard
+            let json = shareWeightsJSON?.data(using: .utf8),
+            let decoded = try? JSONDecoder().decode([String: Int].self, from: json)
+        else { return [:] }
+
+        return Dictionary(
+            decoded.compactMap { key, weight in UUID(uuidString: key).map { ($0, weight) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    /// Records a weighting, or clears it when the split is even.
+    ///
+    /// An even split writes `nil` rather than a dictionary of `1`s. That keeps
+    /// the ordinary expense byte-identical to what it was before this feature
+    /// existed, which matters most for the client that hasn't updated yet: it
+    /// sees a plain even split, because that is exactly what it is.
+    func setShareWeights(_ weights: [UUID: Int]?) {
+        // More than one distinct weight, or there is nothing to record: a
+        // uniform weighting is an even split however large the number is, and
+        // a single sharer takes the whole amount either way.
+        guard let weights, Set(weights.values).count > 1 else {
+            shareWeightsJSON = nil
+            return
+        }
+
+        let encodable = Dictionary(
+            weights.map { ($0.key.uuidString, $0.value) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        shareWeightsJSON = (try? JSONEncoder().encode(encodable))
+            .flatMap { String(data: $0, encoding: .utf8) }
     }
 }
 
@@ -39,8 +102,14 @@ extension ExpenseGroup {
             .sorted { $0.name < $1.name } ?? []
     }
 
+    /// Every expense on the group, payments included.
+    var expenseSet: Set<Expense> { (expenses as? Set<Expense>) ?? [] }
+
+    /// What people actually bought, with the payments settling up left out.
+    var spending: [Expense] { expenseSet.filter { !$0.isReimbursement } }
+
     var entries: [ExpenseEntry] {
-        (expenses as? Set<Expense>)?.compactMap(\.entry) ?? []
+        expenseSet.compactMap(\.entry)
     }
 
     /// Net position per member, including members who come out even.
@@ -54,8 +123,12 @@ extension ExpenseGroup {
     }
 
     /// Everything the group has spent, whoever paid for it.
+    ///
+    /// Reimbursements are excluded. Paying back what you owe moves money
+    /// between two people but buys nothing, and counting it here would inflate
+    /// the trip's total every time somebody settled up.
     var totalSpent: Money {
-        entries.reduce(Money.zero) { $0 + $1.amount }
+        spending.compactMap(\.entry).reduce(Money.zero) { $0 + $1.amount }
     }
 
     /// True when nobody owes anybody — including a group with no expenses yet.
@@ -78,6 +151,11 @@ extension ExpenseGroup {
         let transfers: [Transfer]
         let totalSpent: Money
 
+        /// How many of the group's expenses are actual spending, for the screen
+        /// that reports a count next to the total. Counting the rows instead
+        /// would say "12 expenses" over a total that only added up nine of them.
+        let spendingCount: Int
+
         /// Net position keyed by participant, because the screens that show a
         /// balance show one per member row. Scanning the ordered `balances`
         /// array per row is quadratic in members; the ordered form is still on
@@ -93,12 +171,28 @@ extension ExpenseGroup {
     /// pass it down — don't call it per row.
     func settlement() -> Settlement {
         let roster = roster
-        let entries = entries
+
+        // One walk for both answers. Every expense feeds the balances —
+        // payments included, since they are what clears a debt — while only
+        // real spending adds to the total.
+        var entries: [ExpenseEntry] = []
+        var totalSpent = Money.zero
+        var spendingCount = 0
+
+        for expense in expenseSet {
+            guard let entry = expense.entry else { continue }
+            entries.append(entry)
+            guard !expense.isReimbursement else { continue }
+            totalSpent += entry.amount
+            spendingCount += 1
+        }
+
         let balances = SettlementCalculator.balances(for: entries, roster: roster)
 
         return Settlement(
             transfers: SettlementCalculator.transfers(settling: balances),
-            totalSpent: entries.reduce(Money.zero) { $0 + $1.amount },
+            totalSpent: totalSpent,
+            spendingCount: spendingCount,
             balanceByParticipant: Dictionary(
                 balances.map { ($0.participant.id, $0.amount) },
                 uniquingKeysWith: { first, _ in first }
@@ -147,5 +241,15 @@ extension Expense {
     var foreignAmount: ForeignAmount? {
         guard let code = originalCurrencyCode else { return nil }
         return ForeignAmount(amount: originalAmount, currencyCode: code, rate: exchangeRate)
+    }
+
+    /// Who a payment went to, for the row that renders "Bob paid Anna".
+    ///
+    /// A reimbursement is stored with exactly one member in `splitAmong` — the
+    /// person being paid back — so this is that member. `nil` for ordinary
+    /// expenses, which is what makes it usable as the discriminator in a view.
+    var reimbursementRecipient: Person? {
+        guard isReimbursement else { return nil }
+        return (splitAmong as? Set<Person>)?.first
     }
 }

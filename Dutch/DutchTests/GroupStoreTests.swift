@@ -282,6 +282,241 @@ struct GroupStoreTests {
         #expect(group.transfers.isEmpty)
     }
 
+    // MARK: - Editing
+
+    @Test("Editing an expense rewrites it in place rather than replacing it")
+    func updateKeepsOneRecord() throws {
+        let context = Self.makeContext()
+        let store = GroupStore(context: context)
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        try store.addExpense(
+            title: "Dinner", amount: Money(amount: 30.00),
+            paidBy: alice, splitAmong: [alice, bob], in: group
+        )
+        let expense = try #require((group.expenses as? Set<Expense>)?.first)
+        let id = expense.id
+        let objectID = expense.objectID
+
+        try store.update(
+            expense,
+            title: "Dinner and drinks",
+            amount: Money(amount: 50.00),
+            paidBy: bob,
+            splitAmong: [alice, bob]
+        )
+
+        // One record, same identity — which is what makes CloudKit send a
+        // modification rather than a delete and an insert.
+        #expect(try context.count(for: Expense.fetchRequest()) == 1)
+        #expect(expense.objectID == objectID)
+        #expect(expense.id == id)
+        #expect(expense.title == "Dinner and drinks")
+
+        #expect(group.totalSpent == Money(cents: 5000))
+        let bobBalance = try #require(group.balances.first { $0.participant.name == "Bob" })
+        #expect(bobBalance.amount == Money(cents: 2500))
+    }
+
+    /// An edit corrects what was recorded; it does not move the expense to
+    /// today, which would reshuffle the list under the user.
+    @Test("Editing leaves the original date alone")
+    func updateKeepsTheDate() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+
+        try store.addExpense(
+            title: "Dinner", amount: Money(amount: 30.00),
+            paidBy: alice, splitAmong: [alice], in: group
+        )
+        let expense = try #require((group.expenses as? Set<Expense>)?.first)
+
+        let original = Date(timeIntervalSince1970: 1_000_000)
+        expense.date = original
+
+        try store.update(
+            expense, title: "Dinner", amount: Money(amount: 31.00),
+            paidBy: alice, splitAmong: [alice]
+        )
+
+        #expect(expense.date == original)
+    }
+
+    /// Leaving the code behind would keep rendering a foreign receipt under an
+    /// expense that no longer has one.
+    @Test("Editing away a foreign currency clears its provenance")
+    func updateClearsForeignProvenance() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Kraków", currencyCode: "EUR")
+        let alice = try store.addMember(named: "Alice", to: group)
+
+        let foreign = try #require(ForeignAmount(amount: 100.00, currencyCode: "PLN", rate: 4.0))
+        try store.addExpense(
+            title: "Lunch", amount: foreign.converted,
+            paidBy: alice, splitAmong: [alice], in: group, paidIn: foreign
+        )
+        let expense = try #require((group.expenses as? Set<Expense>)?.first)
+        #expect(expense.foreignAmount != nil)
+
+        try store.update(
+            expense, title: "Lunch", amount: Money(amount: 25.00),
+            paidBy: alice, splitAmong: [alice]
+        )
+
+        #expect(expense.foreignAmount == nil)
+        #expect(expense.originalCurrencyCode == nil)
+    }
+
+    // MARK: - Weighted splits
+
+    @Test("Shares divide an expense unevenly through the bridge")
+    func weightedSplit() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        let aliceID = try #require(alice.id)
+        let bobID = try #require(bob.id)
+
+        try store.addExpense(
+            title: "Room", amount: Money(amount: 90.00),
+            paidBy: alice, splitAmong: [alice, bob], in: group,
+            shares: [aliceID: 2, bobID: 1]
+        )
+
+        let aliceBalance = try #require(group.balances.first { $0.participant.name == "Alice" })
+        let bobBalance = try #require(group.balances.first { $0.participant.name == "Bob" })
+
+        // Alice takes two thirds of her own 90.00, so she is owed Bob's third.
+        #expect(aliceBalance.amount == Money(cents: 3000))
+        #expect(bobBalance.amount == Money(cents: -3000))
+    }
+
+    /// A uniform weighting is an even split, and storing it as one keeps the
+    /// ordinary expense identical to what it was before weights existed —
+    /// which is what a client on the old model will read it as.
+    @Test("A uniform weighting is stored as no weighting at all")
+    func uniformWeightsAreNotStored() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        let aliceID = try #require(alice.id)
+        let bobID = try #require(bob.id)
+
+        try store.addExpense(
+            title: "Dinner", amount: Money(amount: 30.00),
+            paidBy: alice, splitAmong: [alice, bob], in: group,
+            shares: [aliceID: 3, bobID: 3]
+        )
+        let expense = try #require((group.expenses as? Set<Expense>)?.first)
+
+        #expect(expense.shareWeights.isEmpty)
+        let bobBalance = try #require(group.balances.first { $0.participant.name == "Bob" })
+        #expect(bobBalance.amount == Money(cents: -1500))
+    }
+
+    /// Otherwise a weight left behind by a removed sharer would come back from
+    /// nowhere if they were ever added to the expense again.
+    @Test("Weights for members dropped from the split are discarded")
+    func weightsAreScopedToTheSplit() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+        let carol = try store.addMember(named: "Carol", to: group)
+
+        let aliceID = try #require(alice.id)
+        let bobID = try #require(bob.id)
+        let carolID = try #require(carol.id)
+
+        try store.addExpense(
+            title: "Room", amount: Money(amount: 90.00),
+            paidBy: alice, splitAmong: [alice, bob], in: group,
+            shares: [aliceID: 2, bobID: 1, carolID: 5]
+        )
+        let expense = try #require((group.expenses as? Set<Expense>)?.first)
+
+        #expect(expense.shareWeights[carolID] == nil)
+        #expect(expense.shareWeights.count == 2)
+    }
+
+    // MARK: - Settling up
+
+    /// The whole design rests on this: a payment is an ordinary expense paid by
+    /// the debtor and shared by the creditor, so the settlement maths needs no
+    /// concept of settling at all.
+    @Test("Recording a payment settles the debt it was suggested for")
+    func recordPaymentSettles() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        try store.addExpense(
+            title: "Dinner", amount: Money(amount: 30.00),
+            paidBy: alice, splitAmong: [alice, bob], in: group
+        )
+
+        let transfer = try #require(group.transfers.first)
+        #expect(transfer.from.name == "Bob")
+
+        try store.recordPayment(from: bob, to: alice, amount: transfer.amount, in: group)
+
+        #expect(group.isSettled)
+        #expect(group.transfers.isEmpty)
+    }
+
+    /// Paying somebody back moves money but buys nothing, and counting it as
+    /// spending would inflate the trip's total every time anyone settled up.
+    @Test("A payment is not spending")
+    func paymentIsNotSpending() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        try store.addExpense(
+            title: "Dinner", amount: Money(amount: 30.00),
+            paidBy: alice, splitAmong: [alice, bob], in: group
+        )
+        try store.recordPayment(from: bob, to: alice, amount: Money(amount: 15.00), in: group)
+
+        #expect(group.totalSpent == Money(cents: 3000))
+        #expect(group.spending.count == 1)
+        #expect(group.settlement().spendingCount == 1)
+        // Still two rows in the list — the payment is visible, just not spending.
+        #expect(group.expenseSet.count == 2)
+    }
+
+    @Test("Deleting a payment puts the debt back")
+    func deletingPaymentRestoresDebt() throws {
+        let store = GroupStore(context: Self.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        try store.addExpense(
+            title: "Dinner", amount: Money(amount: 30.00),
+            paidBy: alice, splitAmong: [alice, bob], in: group
+        )
+        try store.recordPayment(from: bob, to: alice, amount: Money(amount: 15.00), in: group)
+        #expect(group.isSettled)
+
+        let payment = try #require(group.expenseSet.first { $0.isReimbursement })
+        #expect(payment.reimbursementRecipient == alice)
+
+        try store.delete(payment)
+
+        #expect(!group.isSettled)
+        #expect(group.transfers.first?.amount == Money(cents: 1500))
+    }
+
     @Test("Amounts entered in major units survive the round trip to cents")
     func amountRoundTrip() throws {
         let store = GroupStore(context: Self.makeContext())

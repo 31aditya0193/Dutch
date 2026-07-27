@@ -82,23 +82,119 @@ struct GroupStore {
         paidBy payer: Person,
         splitAmong participants: Set<Person>,
         in group: ExpenseGroup,
-        paidIn foreign: ForeignAmount? = nil
+        paidIn foreign: ForeignAmount? = nil,
+        shares: [UUID: Int]? = nil
     ) throws {
         let expense = Expense(context: context)
         expense.id = UUID()
-        expense.title = title
-        expense.amount = amount.amount
         expense.date = Date()
-        expense.paidBy = payer
         expense.group = group
-        expense.splitAmong = NSSet(set: participants)
 
-        if let foreign {
-            expense.originalAmount = foreign.amount
-            expense.originalCurrencyCode = foreign.currencyCode
-            expense.exchangeRate = foreign.rate
-        }
+        apply(
+            title: title,
+            amount: amount,
+            paidBy: payer,
+            splitAmong: participants,
+            foreign: foreign,
+            shares: shares,
+            to: expense
+        )
 
         try context.save()
+    }
+
+    /// Rewrites an existing expense in place.
+    ///
+    /// The alternative — delete and re-add — is what the UI used to force, and
+    /// on a shared group it means everyone else watches the expense disappear
+    /// and come back as something else. Editing keeps one record with one
+    /// identity, so CloudKit sends a modification and the other devices just
+    /// see the corrected figure.
+    ///
+    /// `date` is deliberately untouched: an edit corrects what was recorded, it
+    /// does not move the expense to today.
+    func update(
+        _ expense: Expense,
+        title: String,
+        amount: Money,
+        paidBy payer: Person,
+        splitAmong participants: Set<Person>,
+        paidIn foreign: ForeignAmount? = nil,
+        shares: [UUID: Int]? = nil
+    ) throws {
+        apply(
+            title: title,
+            amount: amount,
+            paidBy: payer,
+            splitAmong: participants,
+            foreign: foreign,
+            shares: shares,
+            to: expense
+        )
+
+        try context.save()
+    }
+
+    /// Records that one member handed money to another.
+    ///
+    /// Stored as an ordinary expense — paid by the person settling up, shared
+    /// by the person being paid — because that is precisely what a payment is
+    /// in balance terms: it credits the payer and debits the recipient by the
+    /// same amount, which is exactly what clears a debt between them. The
+    /// settlement maths therefore needs no concept of a payment at all.
+    ///
+    /// `isReimbursement` exists only so the screens can tell the two apart: a
+    /// payment is not spending, and must not inflate the group's total.
+    func recordPayment(
+        from payer: Person,
+        to recipient: Person,
+        amount: Money,
+        in group: ExpenseGroup
+    ) throws {
+        let payment = Expense(context: context)
+        payment.id = UUID()
+        payment.date = Date()
+        payment.group = group
+        payment.isReimbursement = true
+        // Carried so a client still on the old model — which knows nothing
+        // about the flag — shows a labelled expense rather than an untitled
+        // one. The balances it computes are right either way.
+        payment.title = "Settle up"
+        payment.amount = amount.amount
+        payment.paidBy = payer
+        payment.splitAmong = NSSet(object: recipient)
+
+        try context.save()
+    }
+
+    /// The fields `addExpense` and `update` write identically, in one place so
+    /// the two cannot drift — an edit that forgot to clear `exchangeRate` would
+    /// leave an expense claiming a conversion that no longer applies.
+    private func apply(
+        title: String,
+        amount: Money,
+        paidBy payer: Person,
+        splitAmong participants: Set<Person>,
+        foreign: ForeignAmount?,
+        shares: [UUID: Int]?,
+        to expense: Expense
+    ) {
+        expense.title = title
+        expense.amount = amount.amount
+        expense.paidBy = payer
+        expense.splitAmong = NSSet(set: participants)
+
+        // Cleared, not just overwritten: an expense edited back into the
+        // group's own currency has no original amount any more, and leaving the
+        // code behind would keep rendering a foreign receipt under it forever.
+        expense.originalAmount = foreign?.amount ?? 0
+        expense.originalCurrencyCode = foreign?.currencyCode
+        expense.exchangeRate = foreign?.rate ?? 0
+
+        // Weights only for members still in the split, so removing someone from
+        // an expense doesn't leave their share behind to be resurrected if they
+        // are added back.
+        let participantIDs = Set(participants.compactMap(\.id))
+        expense.setShareWeights(shares?.filter { participantIDs.contains($0.key) })
     }
 }

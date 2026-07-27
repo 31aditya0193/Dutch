@@ -1,19 +1,22 @@
 import Foundation
 import DutchKit
 
-/// Remembers what the last expense entered *on this device* looked like, per
-/// group: who paid, and in which currency at what rate.
+/// Per-group state belonging to *this device* rather than to the group: who
+/// usually pays, which currency and rate the last expense used, and which
+/// member the person holding the phone is.
 ///
 /// Deliberately `UserDefaults` and not attributes on the group: none of this
 /// must sync. The assumption it encodes is that each person enters their own
 /// spending on their own phone, so "who usually pays" is a fact about the
 /// device, not about the group. Stored on the shared record instead, a partner
 /// logging an expense they paid for would travel over CloudKit and flip the
-/// default on everyone else's phone — the exact opposite of the intent.
+/// default on everyone else's phone — the exact opposite of the intent. The
+/// same goes double for identity: "I am Marek" is true on exactly one device,
+/// and syncing it would tell everyone in the group that they are Marek too.
 ///
-/// None of it is authoritative. Every value here is a prefill the user can
-/// override before saving, so a stale one costs a correction, never a wrong
-/// balance.
+/// None of it is authoritative. Nothing here feeds a balance — these are
+/// prefills and labels — so a stale value costs a correction, never a wrong
+/// number.
 enum ExpenseDefaults {
     private static let store = UserDefaults.standard
 
@@ -24,6 +27,7 @@ enum ExpenseDefaults {
         case currency = "lastCurrency"
         /// Rates carry a further `.<currencyCode>` suffix — see `rateKey`.
         case rate = "rate"
+        case identity = "identity"
 
         func key(for id: UUID) -> String { "\(rawValue).\(id.uuidString)" }
     }
@@ -101,6 +105,39 @@ enum ExpenseDefaults {
     static func rememberHomeCurrency(in group: ExpenseGroup) {
         guard let key = currencyKey(for: group) else { return }
         store.removeObject(forKey: key)
+    }
+
+    // MARK: - Identity
+
+    private static func identityKey(for group: ExpenseGroup) -> String? {
+        group.id.map(Namespace.identity.key(for:))
+    }
+
+    /// Which member of this group is the person holding the phone.
+    ///
+    /// Resolved against the roster like `lastPayer`, so an identity that was
+    /// since removed from the group yields `nil` and the screens fall back to
+    /// naming everyone in the third person — which is what they did before any
+    /// of this existed.
+    static func me(in group: ExpenseGroup, among members: [Person]) -> Person? {
+        guard
+            let key = identityKey(for: group),
+            let stored = store.string(forKey: key),
+            let id = UUID(uuidString: stored)
+        else { return nil }
+
+        return members.first { $0.id == id }
+    }
+
+    /// Sets, or with `nil` clears, who this device belongs to in the group.
+    static func rememberMe(_ person: Person?, in group: ExpenseGroup) {
+        guard let key = identityKey(for: group) else { return }
+
+        guard let id = person?.id else {
+            store.removeObject(forKey: key)
+            return
+        }
+        store.set(id.uuidString, forKey: key)
     }
 
     // MARK: - Cleanup

@@ -17,10 +17,16 @@ struct GroupDetailView: View {
     @State private var showingAddMember = false
     @State private var showingShareSheet = false
     @State private var membersPendingDeletion: [Person] = []
+    @State private var editing: EditTarget?
     @State private var errorMessage: String?
     /// Bumped on each successful add so the haptic fires once per confirmed
     /// write, rather than on any change to the counts (deletes included).
     @State private var addCount = 0
+    /// Which member is the person holding this phone, or `nil` if they haven't
+    /// said. Mirrored into `@State` rather than read from `ExpenseDefaults` in
+    /// the body, because `UserDefaults` is not observable and the badge would
+    /// otherwise not move until something else redrew the screen.
+    @State private var me: Person?
 
     private var store: GroupStore { GroupStore(context: context) }
 
@@ -55,7 +61,10 @@ struct GroupDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddExpense) {
-            AddExpenseView(group: group)
+            ExpenseFormView(group: group)
+        }
+        .sheet(item: $editing) { target in
+            ExpenseFormView(editing: target.expense, in: group)
         }
         .sheet(isPresented: $showingAddMember) {
             AddMemberSheet(onAdd: addMember)
@@ -75,6 +84,10 @@ struct GroupDetailView: View {
         }
         .sensoryFeedback(.success, trigger: addCount)
         .errorBanner($errorMessage)
+        // Resolved against the current roster on every appearance, so an
+        // identity whose member was deleted — here or on another device —
+        // quietly falls back to third person instead of pointing at nothing.
+        .onAppear { me = ExpenseDefaults.me(in: group, among: contents.members) }
     }
 
     // MARK: - Sections
@@ -83,7 +96,7 @@ struct GroupDetailView: View {
     /// group is noise sitting where the useful number will eventually be.
     @ViewBuilder
     private func summarySection(_ contents: Contents) -> some View {
-        if !contents.expenses.isEmpty {
+        if contents.spendingCount > 0 {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Total spent")
@@ -95,7 +108,11 @@ struct GroupDetailView: View {
                         .monospacedDigit()
                         .contentTransition(.numericText())
 
-                    Text("\(count(contents.expenses.count, "expense", "expenses")) · \(count(contents.members.count, "member", "members"))")
+                    // Counts the spending, not the rows: settling up adds an
+                    // entry to the list below but buys nothing, and "12
+                    // expenses" over a total that added up nine of them is
+                    // just wrong.
+                    Text("\(count(contents.spendingCount, "expense", "expenses")) · \(count(contents.members.count, "member", "members"))")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -108,7 +125,7 @@ struct GroupDetailView: View {
     }
 
     private func membersSection(_ contents: Contents) -> some View {
-        Section("Members") {
+        Section {
             if contents.members.isEmpty {
                 Text("Add members to start splitting expenses.")
                     .foregroundStyle(.secondary)
@@ -117,8 +134,24 @@ struct GroupDetailView: View {
                     MemberBalanceRow(
                         name: member.name ?? "Unnamed",
                         balance: member.id.flatMap { contents.balances[$0] },
-                        currencyCode: group.currency
+                        currencyCode: group.currency,
+                        isMe: member == me
                     )
+                    // A context menu rather than a row of its own: identity is
+                    // set once and never thought about again, and a permanent
+                    // "who am I" control would sit in the way of the balances
+                    // for the rest of the trip.
+                    .contextMenu {
+                        if member == me {
+                            Button("Not Me", systemImage: "person.slash") {
+                                setIdentity(nil)
+                            }
+                        } else {
+                            Button("This Is Me", systemImage: "person.crop.circle.badge.checkmark") {
+                                setIdentity(member)
+                            }
+                        }
+                    }
                 }
                 .onDelete { offsets in
                     membersPendingDeletion = offsets.map { contents.members[$0] }
@@ -133,6 +166,14 @@ struct GroupDetailView: View {
             } label: {
                 Label("Add Member", systemImage: "person.badge.plus")
             }
+        } header: {
+            Text("Members")
+        } footer: {
+            // Shown only until it has been answered — a hint that stays on
+            // screen after you've acted on it is just clutter.
+            if me == nil, !contents.members.isEmpty {
+                Text("Touch and hold your own name to have Dutch address you directly.")
+            }
         }
     }
 
@@ -141,7 +182,12 @@ struct GroupDetailView: View {
         if !contents.transfers.isEmpty {
             Section {
                 ForEach(contents.transfers) { transfer in
-                    TransferRow(transfer: transfer, currencyCode: group.currency)
+                    TransferRow(
+                        transfer: transfer,
+                        currencyCode: group.currency,
+                        isMe: transfer.from.id == me?.id,
+                        onSettle: { record(transfer, in: contents) }
+                    )
                 }
             } header: {
                 Text("Settle Up")
@@ -149,7 +195,7 @@ struct GroupDetailView: View {
                 // Deliberately not "the fewest payments" — the calculator is
                 // greedy, and the true minimum is NP-hard. See
                 // `SettlementCalculator.transfers(settling:)`.
-                Text("Make these payments and everyone is even.")
+                Text("Make these payments and everyone is even. Mark one paid and it is logged below.")
             }
         }
     }
@@ -171,7 +217,20 @@ struct GroupDetailView: View {
                 }
             } else {
                 ForEach(contents.expenses, id: \.objectID) { expense in
-                    ExpenseRow(expense: expense, currencyCode: group.currency)
+                    // Payments are not editable: there is nothing in one to
+                    // correct except whether it happened, and that is what
+                    // deleting it says. Ordinary expenses open the form.
+                    if expense.isReimbursement {
+                        PaymentRow(expense: expense, currencyCode: group.currency)
+                    } else {
+                        Button {
+                            editing = EditTarget(expense: expense)
+                        } label: {
+                            ExpenseRow(expense: expense, currencyCode: group.currency)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Opens the expense for editing")
+                    }
                 }
                 .onDelete { offsets in
                     delete(at: offsets, from: contents.expenses)
@@ -271,9 +330,55 @@ struct GroupDetailView: View {
         }
     }
 
+    /// Logs one of the suggested payments as having happened.
+    ///
+    /// The transfer is expressed in `Participant`s, which the store cannot
+    /// write — it needs the `Person` records behind them, hence the lookup.
+    /// A transfer naming somebody who is no longer in the group can't be
+    /// recorded, and silently doing nothing would look like the tap missed.
+    private func record(_ transfer: Transfer, in contents: Contents) {
+        guard
+            let payer = contents.person[transfer.from.id],
+            let recipient = contents.person[transfer.to.id]
+        else {
+            errorMessage = "That member is no longer in this group."
+            return
+        }
+
+        do {
+            try store.recordPayment(
+                from: payer,
+                to: recipient,
+                amount: transfer.amount,
+                in: group
+            )
+            addCount += 1
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func setIdentity(_ member: Person?) {
+        ExpenseDefaults.rememberMe(member, in: group)
+        withAnimation(.snappy) { me = member }
+    }
+
     private func count(_ value: Int, _ singular: String, _ plural: String) -> String {
         "\(value) \(value == 1 ? singular : plural)"
     }
+}
+
+// MARK: - Edit Target
+
+/// Wraps the expense being edited so it can drive `sheet(item:)`.
+///
+/// `Expense` cannot be `Identifiable` off its own `id`: every attribute is
+/// optional for CloudKit's sake, and a sheet keyed on a `nil` id would never
+/// present. The object id is always there, and is exactly as stable as the
+/// object itself.
+private struct EditTarget: Identifiable {
+    let expense: Expense
+    var id: NSManagedObjectID { expense.objectID }
 }
 
 // MARK: - Render Snapshot
@@ -290,17 +395,30 @@ private struct Contents {
     let balances: [Participant.ID: Money]
     let transfers: [Transfer]
     let totalSpent: Money
+    /// How many of `expenses` are actual spending rather than settling up.
+    let spendingCount: Int
+
+    /// Members keyed by id, so recording a payment can get from the `Transfer`
+    /// the settlement produced back to the `Person` the store needs to write.
+    let person: [UUID: Person]
 
     init(group: ExpenseGroup) {
-        members = (group.members as? Set<Person>)?
+        let roster = (group.members as? Set<Person>)?
             .sorted { ($0.name ?? "") < ($1.name ?? "") } ?? []
+        members = roster
         expenses = (group.expenses as? Set<Expense>)?
             .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) } ?? []
+
+        person = Dictionary(
+            roster.compactMap { member in member.id.map { ($0, member) } },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         let settlement = group.settlement()
         balances = settlement.balanceByParticipant
         transfers = settlement.transfers
         totalSpent = settlement.totalSpent
+        spendingCount = settlement.spendingCount
     }
 }
 
@@ -310,6 +428,9 @@ private struct MemberBalanceRow: View {
     let name: String
     let balance: Money?
     let currencyCode: String
+    /// Whether this is the person holding the phone, which changes the caption
+    /// from a statement about someone else into one about them.
+    let isMe: Bool
 
     /// Where a member stands. Modelled as three cases rather than a sign test
     /// so that "even" is its own state — the previous version rendered a zero
@@ -330,10 +451,10 @@ private struct MemberBalanceRow: View {
         /// Redundant to the colour on purpose. Colour alone can't carry the
         /// difference between owing and being owed: it fails for anyone with a
         /// red/green deficiency, and VoiceOver never sees it at all.
-        var caption: String {
+        func caption(isMe: Bool) -> String {
             switch self {
-            case .owes: "owes"
-            case .isOwed: "is owed"
+            case .owes: isMe ? "you owe" : "owes"
+            case .isOwed: isMe ? "you are owed" : "is owed"
             case .settled: "settled up"
             }
         }
@@ -347,6 +468,20 @@ private struct MemberBalanceRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(name)
+
+            // A badge rather than replacing the name with "You": the name is
+            // still how everyone else in the group refers to this person, and
+            // dropping it makes the row harder to scan, not easier.
+            if isMe {
+                Text("You")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.15), in: Capsule())
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityHidden(true)  // carried by the label below
+            }
+
             Spacer(minLength: 12)
 
             VStack(alignment: .trailing, spacing: 2) {
@@ -365,23 +500,23 @@ private struct MemberBalanceRow: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text(standing.caption)
+                Text(standing.caption(isMe: isMe))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
         .animation(.snappy, value: balance)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(name)
+        .accessibilityLabel(isMe ? "\(name), you" : name)
         .accessibilityValue(accessibleValue)
     }
 
     private var accessibleValue: String {
         switch standing {
         case .owes(let amount):
-            "Owes \(amount.formatted(currencyCode: currencyCode))"
+            "\(isMe ? "You owe" : "Owes") \(amount.formatted(currencyCode: currencyCode))"
         case .isOwed(let amount):
-            "Is owed \(amount.formatted(currencyCode: currencyCode))"
+            "\(isMe ? "You are owed" : "Is owed") \(amount.formatted(currencyCode: currencyCode))"
         case .settled:
             "Settled up"
         }
@@ -393,36 +528,61 @@ private struct MemberBalanceRow: View {
 private struct TransferRow: View {
     let transfer: Transfer
     let currencyCode: String
+    /// Whether the payment is one *this* device's owner has to make.
+    let isMe: Bool
+    let onSettle: () -> Void
+
+    private var payer: String { isMe ? "You" : transfer.from.name }
+
+    private var amount: String {
+        transfer.amount.formatted(currencyCode: currencyCode)
+    }
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            // Preferred, while two names and an amount genuinely share a line.
-            HStack(spacing: 8) {
-                Text(transfer.from.name).fontWeight(.medium)
-                Image(systemName: "arrow.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(transfer.to.name).fontWeight(.medium)
-                Spacer(minLength: 12)
-                Text(transfer.amount.formatted(currencyCode: currencyCode))
-                    .monospacedDigit()
-            }
+        HStack(spacing: 12) {
+            ViewThatFits(in: .horizontal) {
+                // Preferred, while two names and an amount genuinely share a line.
+                HStack(spacing: 8) {
+                    Text(payer).fontWeight(.medium)
+                    Image(systemName: "arrow.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(transfer.to.name).fontWeight(.medium)
+                    Spacer(minLength: 12)
+                    Text(amount).monospacedDigit()
+                }
 
-            // Fallback for long names and accessibility text sizes, where the
-            // single line used to truncate both names into uselessness.
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(transfer.from.name) → \(transfer.to.name)")
-                    .fontWeight(.medium)
-                Text(transfer.amount.formatted(currencyCode: currencyCode))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                // Fallback for long names and accessibility text sizes, where the
+                // single line used to truncate both names into uselessness.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(payer) → \(transfer.to.name)")
+                        .fontWeight(.medium)
+                    Text(amount)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
             }
+            .font(.callout)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                isMe
+                    ? "You pay \(transfer.to.name) \(amount)"
+                    : "\(transfer.from.name) pays \(transfer.to.name) \(amount)"
+            )
+
+            // A visible button, not a swipe action. Settling up is the second
+            // thing anyone comes to this screen to do, and hiding it behind a
+            // gesture with no affordance means most people never find it.
+            // `.borderless` keeps it a hit target of its own inside the row.
+            Button("Mark Paid", action: onSettle)
+                .font(.caption.weight(.semibold))
+                .buttonStyle(.borderless)
+                .accessibilityLabel(
+                    isMe
+                        ? "Mark your \(amount) payment to \(transfer.to.name) as paid"
+                        : "Mark \(transfer.from.name)'s \(amount) payment to \(transfer.to.name) as paid"
+                )
         }
-        .font(.callout)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(transfer.from.name) pays \(transfer.to.name) \(transfer.amount.formatted(currencyCode: currencyCode))"
-        )
     }
 }
 
@@ -471,6 +631,59 @@ private struct ExpenseRow: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Payment Row
+
+/// A settling-up payment in the expense list.
+///
+/// Rendered as a sentence rather than a title and an amount, because that is
+/// what it is: money that moved between two people and bought nothing. It sits
+/// in the same list as the expenses so it can be deleted the same way — which
+/// is the only undo a mis-tapped "Mark Paid" needs.
+private struct PaymentRow: View {
+    let expense: Expense
+    let currencyCode: String
+
+    private var sentence: String {
+        let payer = expense.paidBy?.name ?? "?"
+        let recipient = expense.reimbursementRecipient?.name ?? "?"
+        return "\(payer) paid \(recipient)"
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(sentence)
+                    .font(.callout)
+                if let date = expense.date {
+                    Text(date.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 12)
+
+            // Secondary, unlike an expense amount: this figure is not part of
+            // what the trip cost, and giving it the same weight as a real
+            // expense would suggest it was.
+            Text(Money(amount: expense.amount).formatted(currencyCode: currencyCode))
+                .font(.callout)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(sentence) \(Money(amount: expense.amount).formatted(currencyCode: currencyCode))"
+        )
     }
 }
 
