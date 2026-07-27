@@ -18,9 +18,27 @@ struct AddExpenseView: View {
     @State private var errorMessage: String?
     @FocusState private var titleFocused: Bool
 
+    /// Seeds the two selections from the state the form would otherwise make
+    /// the user re-enter every single time.
+    ///
+    /// Done in `init` rather than `.task` so the sheet is never briefly drawn
+    /// with nothing selected, and so a later re-render can't re-seed over an
+    /// edit in progress — `@State` keeps the value from first construction.
+    init(group: ExpenseGroup) {
+        self.group = group
+
+        let roster = Self.roster(of: group)
+        // Splitting across everyone is what the app is for; "nobody" was never
+        // a useful starting point, and cost a tap per member to escape.
+        _selectedParticipants = State(initialValue: Set(roster))
+        _selectedPayer = State(initialValue: ExpenseDefaults.lastPayer(in: group, among: roster))
+    }
+
     private var store: GroupStore { GroupStore(context: context) }
 
-    private var members: [Person] {
+    private var members: [Person] { Self.roster(of: group) }
+
+    private static func roster(of group: ExpenseGroup) -> [Person] {
         (group.members as? Set<Person>)?
             .sorted { ($0.name ?? "") < ($1.name ?? "") } ?? []
     }
@@ -207,6 +225,7 @@ struct AddExpenseView: View {
                 splitAmong: selectedParticipants,
                 in: group
             )
+            ExpenseDefaults.rememberPayer(payer, in: group)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

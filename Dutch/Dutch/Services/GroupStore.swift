@@ -39,6 +39,11 @@ struct GroupStore {
     /// Deletes a group along with its members and expenses, via the model's
     /// cascade rules.
     func delete(_ group: ExpenseGroup) throws {
+        // Before the delete, not after: once the context has saved, `group` is
+        // an invalidated object and reading `id` off it to build the key is no
+        // longer safe. If the save then fails, the cost is a forgotten default
+        // that the next saved expense sets again.
+        ExpenseDefaults.forget(group)
         context.delete(group)
         try context.save()
     }
