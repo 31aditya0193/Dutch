@@ -34,6 +34,13 @@ struct ExpenseFormView: View {
     /// that differs between the two modes reads from this.
     private let editing: Expense?
 
+    /// Whether this is a copy of an existing expense rather than a blank one.
+    ///
+    /// Separate from `editing` because a duplicate saves like an add — a new
+    /// record, dated now — but is seeded like an edit, so neither flag alone
+    /// describes it.
+    private let isDuplicate: Bool
+
     @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
 
@@ -74,6 +81,7 @@ struct ExpenseFormView: View {
     init(group: ExpenseGroup) {
         self.group = group
         self.editing = nil
+        self.isDuplicate = false
 
         let roster = Self.roster(of: group)
         // Splitting across everyone is what the app is for; "nobody" was never
@@ -94,17 +102,39 @@ struct ExpenseFormView: View {
 
     /// An existing expense, seeded from what was recorded rather than from the
     /// device's defaults.
+    init(editing expense: Expense, in group: ExpenseGroup) {
+        self.init(group: group, seededFrom: expense, editing: expense)
+    }
+
+    /// A new expense carrying over everything an existing one already had.
+    ///
+    /// Four people taking turns at the bar enter the same title, the same
+    /// amount and the same split four times over, and only the payer differs —
+    /// which is also the one field `ExpenseDefaults.lastPayer` gets reliably
+    /// wrong, since in a round the person who paid last is precisely the person
+    /// not paying now. Copying what the user already entered beats guessing at
+    /// a cleverer prefill.
+    init(duplicating expense: Expense, in group: ExpenseGroup) {
+        self.init(group: group, seededFrom: expense, editing: nil)
+    }
+
+    /// The seeding both of the above share.
     ///
     /// A foreign expense reopens in the currency it was *entered* in, not the
     /// group's. The stored `amount` is the converted figure, so showing that as
     /// the starting point would mean someone who came to fix a typo in the
     /// title saves a euro total back into a złoty field.
-    init(editing expense: Expense, in group: ExpenseGroup) {
+    private init(group: ExpenseGroup, seededFrom expense: Expense, editing: Expense?) {
         self.group = group
-        self.editing = expense
+        self.editing = editing
+        self.isDuplicate = editing == nil
 
         _title = State(initialValue: expense.title ?? "")
-        _selectedPayer = State(initialValue: expense.paidBy)
+        // Left blank on a duplicate, and it is the only field that is: the
+        // payer is the thing the user came to change, and carrying the original
+        // over would let a whole round be logged against the wrong person with
+        // one tap on Save. An empty picker keeps Save disabled until they say.
+        _selectedPayer = State(initialValue: editing == nil ? nil : expense.paidBy)
         _selectedParticipants = State(initialValue: (expense.splitAmong as? Set<Person>) ?? [])
 
         if let foreign = expense.foreignAmount {
@@ -128,6 +158,14 @@ struct ExpenseFormView: View {
     // MARK: - Seeding
 
     private var isEditing: Bool { editing != nil }
+
+    /// Says which of the three the sheet is, so a duplicate can't be mistaken
+    /// for an edit of the row it was opened from — the difference being whether
+    /// the original survives.
+    private var navigationTitle: String {
+        if isEditing { return "Edit Expense" }
+        return isDuplicate ? "Duplicate Expense" : "Add Expense"
+    }
 
     /// Weights come back keyed by id; the form works in `Person`, which is what
     /// the rows and the selection are built from.
@@ -183,7 +221,7 @@ struct ExpenseFormView: View {
                 splitAmongSection(slices)
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isEditing ? "Edit Expense" : "Add Expense")
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -225,9 +263,10 @@ struct ExpenseFormView: View {
             }
             .errorBanner($errorMessage)
             .task {
-                // Only when adding. Opening the keyboard on an edit puts a
-                // cursor in a title the user most likely came to keep.
-                titleFocused = !isEditing
+                // Only on a blank form. Opening the keyboard on an edit — or on
+                // a duplicate — puts a cursor in a title the user most likely
+                // came to keep.
+                titleFocused = !isEditing && !isDuplicate
             }
         }
     }

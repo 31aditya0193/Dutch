@@ -15,6 +15,7 @@ The app runs **without a central server** and without user accounts. It leans on
 - ✅ **Settling Up** – mark a suggested payment as made and it is logged; the debt clears and the total spent is left alone, because paying someone back buys nothing.
 - ⚖️ **Uneven Splits** – set what anyone pays as a percentage of a full share: 49% for a fare with 51% off, 50% each for a couple sharing one hotel room. Every split still reconciles to the cent.
 - ✏️ **Editable Expenses** – correct an expense in place instead of deleting and re-entering it, so the other members see a modification rather than a disappearance.
+- 📋 **Duplicate an Expense** – touch and hold a round at the bar to enter the next one: same title, same amount, same split, with only the payer left to pick.
 - 🌍 **Foreign Currencies** – enter what you actually handed over abroad; it is converted once, at the rate you saw, and stored in the group's currency so nobody's balance drifts as rates move.
 - 🙋 **Second Person** – tell the app which member you are and it says "you owe" instead of naming you in the third person. Kept on the device, never synced.
 - 💰 **Exact to the Cent** – money is held as integer cents, so a three-way split never loses a penny to floating point.

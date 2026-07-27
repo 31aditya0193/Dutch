@@ -24,10 +24,11 @@ any of those. Watch the asset catalog, not the code.
 - iCloud sync and group sharing by QR code
 - Expenses entered in a foreign currency, converted once at entry
 
-**Added since:** the four below, built together because two of them shared a
-single Core Data version bump and doing that migration twice would have been
-worse than doing it once. The reasoning is kept here because each one had a
-non-obvious decision behind it.
+**Added since:** the five below. The first four were built together because two
+of them shared a single Core Data version bump and doing that migration twice
+would have been worse than doing it once; the fifth needed no model change at
+all. The reasoning is kept here because each one had a non-obvious decision
+behind it.
 
 ### Edit an expense
 
@@ -91,27 +92,39 @@ the group that they are Marek too.
 
 *Cost: a `UserDefaults` key. No model change.*
 
+### Duplicate an expense
+
+Buying rounds was the case. Four people take turns at the bar, and each round is
+the same title, the same amount and the same split — everything except who paid.
+That was four full trips through the form, and the payer prefill actively worked
+against you: `ExpenseDefaults.lastPayer` suggests whoever paid last, which in a
+round is precisely the person who is *not* paying now.
+
+Touch and hold an expense → **Duplicate** → the form opens carrying everything
+over. Four rounds are one full entry and three pairs of taps. It also catches the
+everyday repeat on a trip: the same coffee, the same parking, the same ticket.
+
+Duplication rather than a cleverer prefill, deliberately. Guessing who pays next
+is fortune-telling; copying what the user already entered is not.
+
+The payer is the one field deliberately left empty, which also leaves Save
+disabled until it is answered. Carrying the original over would mean a whole
+round could be logged against the wrong person with a single tap — and the payer
+is the only reason this screen is open. Everything else is a copy, including the
+currency and the rate it was captured at, so a duplicated foreign receipt
+converts exactly as the original did rather than at whatever rate was last used.
+
+Long-press rather than a swipe action or a row button: this is wanted often
+enough to exist and read often enough that it shouldn't take up space in the
+list. Payments are excluded — settling up is recorded from the section above,
+and paying the same debt twice is a mistake rather than a shortcut.
+
+*Cost: zero bytes. No model change; `GroupStore.addExpense` already took every
+field this needed.*
+
 ---
 
 ## Next
-
-### 5. Duplicate an expense
-
-Buying rounds is the case. Four people take turns at the bar, and each round is
-the same title, the same amount and the same split — everything except who paid.
-Today that is four full trips through the form, and the payer prefill actively
-works against you: `ExpenseDefaults.lastPayer` suggests whoever paid last, which
-in a round is precisely the person who is *not* paying now.
-
-Long-press an expense → **Duplicate** → the form opens with everything carried
-over and only the payer left to change. Four rounds become one full entry and
-three pairs of taps. It also catches the everyday repeat on a trip: the same
-coffee, the same parking, the same ticket.
-
-The fix is duplication rather than a cleverer prefill, deliberately. Guessing who
-pays next is fortune-telling; copying what the user already entered is not.
-
-*Cost: zero bytes. `GroupStore.addExpense` already takes every field this needs.*
 
 ### 6. App Intents / Shortcuts
 
@@ -178,8 +191,8 @@ trips through the form and the group then reads "3 expenses" for one dinner.
 needs entering at all. One person covering someone else — Marcin paying for
 Kasia because she had no cash — is already an ordinary expense paid by Marcin
 and split among Kasia alone. Rounds at the bar are one even-split expense each.
-None of that needs this feature; see item 5 for the friction that one actually
-has.
+None of that needs this feature; the friction rounds actually had is what
+**Duplicate an expense** above fixed.
 
 **Mixed is the real shape of it.** "Ania pays her 23.50, the rest of us split
 what's left" means some rows are fixed and the remainder divides between the

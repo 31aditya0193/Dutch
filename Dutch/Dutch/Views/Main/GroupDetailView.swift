@@ -17,7 +17,7 @@ struct GroupDetailView: View {
     @State private var showingAddMember = false
     @State private var showingShareSheet = false
     @State private var membersPendingDeletion: [Person] = []
-    @State private var editing: EditTarget?
+    @State private var formTarget: FormTarget?
     @State private var errorMessage: String?
     /// Bumped on each successful add so the haptic fires once per confirmed
     /// write, rather than on any change to the counts (deletes included).
@@ -63,8 +63,13 @@ struct GroupDetailView: View {
         .sheet(isPresented: $showingAddExpense) {
             ExpenseFormView(group: group)
         }
-        .sheet(item: $editing) { target in
-            ExpenseFormView(editing: target.expense, in: group)
+        .sheet(item: $formTarget) { target in
+            switch target.mode {
+            case .edit:
+                ExpenseFormView(editing: target.expense, in: group)
+            case .duplicate:
+                ExpenseFormView(duplicating: target.expense, in: group)
+            }
         }
         .sheet(isPresented: $showingAddMember) {
             AddMemberSheet(onAdd: addMember)
@@ -224,12 +229,24 @@ struct GroupDetailView: View {
                         PaymentRow(expense: expense, currencyCode: group.currency)
                     } else {
                         Button {
-                            editing = EditTarget(expense: expense)
+                            formTarget = FormTarget(expense: expense, mode: .edit)
                         } label: {
                             ExpenseRow(expense: expense, currencyCode: group.currency)
                         }
                         .buttonStyle(.plain)
                         .accessibilityHint("Opens the expense for editing")
+                        // Long-press rather than a swipe action or a button on
+                        // the row: repeating an expense is common enough to
+                        // want and rare enough that it shouldn't take up space
+                        // in a list people mostly read. Payments are left out —
+                        // a settlement is recorded from the section above, and
+                        // paying the same debt twice is a mistake, not a
+                        // shortcut.
+                        .contextMenu {
+                            Button("Duplicate", systemImage: "plus.square.on.square") {
+                                formTarget = FormTarget(expense: expense, mode: .duplicate)
+                            }
+                        }
                     }
                 }
                 .onDelete { offsets in
@@ -368,17 +385,28 @@ struct GroupDetailView: View {
     }
 }
 
-// MARK: - Edit Target
+// MARK: - Form Target
 
-/// Wraps the expense being edited so it can drive `sheet(item:)`.
+/// Wraps the expense the form is opening on, and what it is opening for, so it
+/// can drive `sheet(item:)`.
 ///
 /// `Expense` cannot be `Identifiable` off its own `id`: every attribute is
 /// optional for CloudKit's sake, and a sheet keyed on a `nil` id would never
 /// present. The object id is always there, and is exactly as stable as the
-/// object itself.
-private struct EditTarget: Identifiable {
+/// object itself — and the mode joins it so that duplicating the row you just
+/// finished editing counts as a different sheet rather than the same one again.
+private struct FormTarget: Identifiable {
+    enum Mode: String {
+        /// Rewrites the expense in place.
+        case edit
+        /// Leaves it alone and adds a copy.
+        case duplicate
+    }
+
     let expense: Expense
-    var id: NSManagedObjectID { expense.objectID }
+    let mode: Mode
+
+    var id: String { "\(mode.rawValue)-\(expense.objectID.uriRepresentation())" }
 }
 
 // MARK: - Render Snapshot
