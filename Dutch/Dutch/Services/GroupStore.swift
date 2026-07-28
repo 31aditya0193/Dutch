@@ -11,7 +11,11 @@ struct GroupStore {
     let context: NSManagedObjectContext
 
     @discardableResult
-    func createGroup(named name: String, currencyCode: String? = nil) throws -> ExpenseGroup {
+    func createGroup(
+        named name: String,
+        currencyCode: String? = nil,
+        appearance: GroupAppearance? = nil
+    ) throws -> ExpenseGroup {
         let group = ExpenseGroup(context: context)
         group.id = UUID()
         group.name = name
@@ -20,9 +24,29 @@ struct GroupStore {
         // Pinned at creation so the group reads the same on every member's
         // device, whatever locale they happen to be in.
         group.currencyCode = currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+        // Left unset when nobody chose, so the group falls back to the look
+        // derived from its id rather than to a stored default that every group
+        // created this way would share. See `ExpenseGroup.appearance`.
+        group.symbolName = appearance?.symbol.rawValue
+        group.colorName = appearance?.color.rawValue
 
         try context.save()
         return group
+    }
+
+    /// Renames a group and restyles it.
+    ///
+    /// Both sync, deliberately: a group's name and its icon are what it *is* to
+    /// everyone on the trip, not a preference of whoever happens to be looking.
+    /// The currency is absent for the opposite reason — it was pinned at
+    /// creation, and changing it later would reinterpret every amount already
+    /// recorded as if it had been paid in the new one.
+    func update(_ group: ExpenseGroup, name: String, appearance: GroupAppearance) throws {
+        group.name = name
+        group.symbolName = appearance.symbol.rawValue
+        group.colorName = appearance.color.rawValue
+
+        try context.save()
     }
 
     @discardableResult

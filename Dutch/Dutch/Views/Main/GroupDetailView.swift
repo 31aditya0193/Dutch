@@ -31,6 +31,7 @@ struct GroupDetailView: View {
     @State private var showingAddExpense = false
     @State private var showingAddMember = false
     @State private var showingShareSheet = false
+    @State private var showingEditGroup = false
     @State private var membersPendingDeletion: [Person] = []
     @State private var formTarget: FormTarget?
     @State private var errorMessage: String?
@@ -65,6 +66,20 @@ struct GroupDetailView: View {
         .navigationTitle(group.name ?? "Group")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                // Leftmost of the three: renaming and restyling is something
+                // you do once, and it has no business sitting where the thumb
+                // lands for "add an expense".
+                //
+                // In the toolbar rather than on the summary block, because that
+                // block only exists once there is spending — and a brand new
+                // group with a name typed in a hurry is exactly the one you
+                // want to fix.
+                Button {
+                    showingEditGroup = true
+                } label: {
+                    Label("Edit Group", systemImage: "pencil")
+                }
+
                 Button {
                     showingAddExpense = true
                 } label: {
@@ -96,6 +111,9 @@ struct GroupDetailView: View {
         .sheet(isPresented: $showingShareSheet) {
             ShareGroupView(group: group)
         }
+        .sheet(isPresented: $showingEditGroup) {
+            EditGroupSheet(group: group, onSave: updateGroup)
+        }
         .confirmationDialog(
             deletionTitle,
             isPresented: deletionBinding,
@@ -122,23 +140,30 @@ struct GroupDetailView: View {
     private func summarySection(_ contents: Contents) -> some View {
         if contents.spendingCount > 0 {
             Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Total spent")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                // The same tile as the list row, so arriving here confirms you
+                // opened the group you meant to. Larger, because this is the
+                // one place it isn't competing with a column of others.
+                HStack(alignment: .top, spacing: 16) {
+                    GroupIcon(group.appearance, size: 52)
 
-                    Text(contents.totalSpent.formatted(in: group))
-                        .font(.largeTitle.weight(.semibold))
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Total spent")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
 
-                    // Counts the spending, not the rows: settling up adds an
-                    // entry to the list below but buys nothing, and "12
-                    // expenses" over a total that added up nine of them is
-                    // just wrong.
-                    Text("\(count(contents.spendingCount, "expense", "expenses")) · \(count(contents.members.count, "member", "members"))")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        Text(contents.totalSpent.formatted(in: group))
+                            .font(.largeTitle.weight(.semibold))
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+
+                        // Counts the spending, not the rows: settling up adds an
+                        // entry to the list below but buys nothing, and "12
+                        // expenses" over a total that added up nine of them is
+                        // just wrong.
+                        Text("\(count(contents.spendingCount, "expense", "expenses")) · \(count(contents.members.count, "member", "members"))")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.vertical, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -364,6 +389,14 @@ struct GroupDetailView: View {
         do {
             try store.addMember(named: name, to: group)
             addCount += 1
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func updateGroup(name: String, appearance: GroupAppearance) {
+        do {
+            try store.update(group, name: name, appearance: appearance)
         } catch {
             errorMessage = error.localizedDescription
         }

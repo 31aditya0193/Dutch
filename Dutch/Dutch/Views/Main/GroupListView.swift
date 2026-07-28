@@ -99,9 +99,17 @@ struct GroupListView: View {
 
     // MARK: - Actions
 
-    private func createGroup(named name: String, currencyCode: String) {
+    private func createGroup(
+        named name: String,
+        currencyCode: String,
+        appearance: GroupAppearance
+    ) {
         do {
-            groupToOpen = try store.createGroup(named: name, currencyCode: currencyCode)
+            groupToOpen = try store.createGroup(
+                named: name,
+                currencyCode: currencyCode,
+                appearance: appearance
+            )
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -160,18 +168,24 @@ private struct GroupRow: View {
         let expenseCount = expenses.count
         let standing = me?.id.map { Standing(balance: settlement.balanceByParticipant[$0]) }
 
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline) {
-                identity(memberCount: memberCount, expenseCount: expenseCount)
-                Spacer(minLength: 12)
-                money(settlement, standing: standing, alignment: .trailing)
-            }
+        // The tile sits outside the fitting, so it is present in both branches
+        // and the fit is decided on the width the text actually gets.
+        HStack(spacing: 12) {
+            GroupIcon(group.appearance)
 
-            // Once names, currency and type size stop sharing a line, stack
-            // rather than truncate.
-            VStack(alignment: .leading, spacing: 8) {
-                identity(memberCount: memberCount, expenseCount: expenseCount)
-                money(settlement, standing: standing, alignment: .leading)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline) {
+                    identity(memberCount: memberCount, expenseCount: expenseCount)
+                    Spacer(minLength: 12)
+                    money(settlement, standing: standing, alignment: .trailing)
+                }
+
+                // Once names, currency and type size stop sharing a line, stack
+                // rather than truncate.
+                VStack(alignment: .leading, spacing: 8) {
+                    identity(memberCount: memberCount, expenseCount: expenseCount)
+                    money(settlement, standing: standing, alignment: .leading)
+                }
             }
         }
         .padding(.vertical, 4)

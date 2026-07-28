@@ -11,10 +11,14 @@ struct NewGroupSheet: View {
 
     @State private var name = ""
     @State private var currencyCode = Locale.current.currency?.identifier ?? "USD"
+    /// Seeded at random rather than from a fixed default, so somebody setting up
+    /// three trips in a row doesn't get three identical blue tiles unless they
+    /// go looking for the picker.
+    @State private var appearance = GroupAppearance.random
     @FocusState private var nameFocused: Bool
 
-    /// Called with the trimmed name and the chosen currency.
-    let onCreate: (String, String) -> Void
+    /// Called with the trimmed name, the chosen currency and the chosen look.
+    let onCreate: (String, String, GroupAppearance) -> Void
 
     private var trimmedName: String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -24,10 +28,16 @@ struct NewGroupSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Group Name", text: $name)
-                        .focused($nameFocused)
-                        .submitLabel(.done)
-                        .onSubmit(create)
+                    // The tile leads the field it names, so the thing being
+                    // chosen below is already on screen next to what it labels.
+                    HStack(spacing: 12) {
+                        GroupIcon(appearance)
+
+                        TextField("Group Name", text: $name)
+                            .focused($nameFocused)
+                            .submitLabel(.done)
+                            .onSubmit(create)
+                    }
 
                     Picker("Currency", selection: $currencyCode) {
                         ForEach(Self.currencies, id: \.code) { currency in
@@ -38,6 +48,10 @@ struct NewGroupSheet: View {
                     .pickerStyle(.navigationLink)
                 } footer: {
                     Text("Every expense in this group is recorded in this currency, on everyone's device.")
+                }
+
+                Section("Appearance") {
+                    AppearancePicker(appearance: $appearance)
                 }
             }
             .navigationTitle("New Group")
@@ -63,7 +77,7 @@ struct NewGroupSheet: View {
 
     private func create() {
         guard !trimmedName.isEmpty else { return }
-        onCreate(trimmedName, currencyCode)
+        onCreate(trimmedName, currencyCode, appearance)
         dismiss()
     }
 
@@ -84,8 +98,8 @@ struct NewGroupSheet: View {
 #Preview {
     Text("Behind the sheet")
         .sheet(isPresented: .constant(true)) {
-            NewGroupSheet { name, currency in
-                print("create \(name) in \(currency)")
+            NewGroupSheet { name, currency, appearance in
+                print("create \(name) in \(currency) as \(appearance)")
             }
         }
 }
