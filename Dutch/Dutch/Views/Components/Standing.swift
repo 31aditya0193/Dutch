@@ -1,0 +1,68 @@
+import DutchKit
+import SwiftUI
+
+/// Where somebody stands in a group: owing, owed, or even.
+///
+/// Three cases rather than a signed `Money` carried around with a sign test at
+/// each call site, so that "even" is a state of its own. An earlier version
+/// tinted by sign alone and rendered a zero balance green, which reads as being
+/// owed money.
+///
+/// Shared between the group list and the detail screen because both answer the
+/// same question — the list for the person holding the phone, the detail screen
+/// for every member — and phrasing or colouring them differently would make the
+/// same balance look like two different facts.
+enum Standing: Equatable {
+    case owes(Money)
+    case isOwed(Money)
+    case settled
+
+    /// A net position as a standing. `nil` — a member the settlement has no
+    /// balance for — is even, which is what a member with no expenses is.
+    init(balance: Money?) {
+        guard let balance, !balance.isZero else {
+            self = .settled
+            return
+        }
+        self = balance < .zero ? .owes(balance.magnitude) : .isOwed(balance)
+    }
+
+    /// The amount at stake, or `nil` when nothing is.
+    var amount: Money? {
+        switch self {
+        case .owes(let amount), .isOwed(let amount): amount
+        case .settled: nil
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .owes: .red
+        case .isOwed: .green
+        case .settled: .secondary
+        }
+    }
+
+    /// Redundant to the colour on purpose. Colour alone can't carry the
+    /// difference between owing and being owed: it fails for anyone with a
+    /// red/green deficiency, and VoiceOver never sees it at all.
+    func caption(isMe: Bool) -> String {
+        switch self {
+        case .owes: isMe ? "you owe" : "owes"
+        case .isOwed: isMe ? "you are owed" : "is owed"
+        case .settled: "settled up"
+        }
+    }
+
+    /// The whole standing as a sentence, for VoiceOver.
+    func accessibleValue(isMe: Bool, currencyCode: String) -> String {
+        switch self {
+        case .owes(let amount):
+            "\(isMe ? "You owe" : "Owes") \(amount.formatted(currencyCode: currencyCode))"
+        case .isOwed(let amount):
+            "\(isMe ? "You are owed" : "Is owed") \(amount.formatted(currencyCode: currencyCode))"
+        case .settled:
+            "Settled up"
+        }
+    }
+}

@@ -24,11 +24,11 @@ any of those. Watch the asset catalog, not the code.
 - iCloud sync and group sharing by QR code
 - Expenses entered in a foreign currency, converted once at entry
 
-**Added since:** the five below. The first four were built together because two
+**Added since:** the seven below. The first four were built together because two
 of them shared a single Core Data version bump and doing that migration twice
-would have been worse than doing it once; the fifth needed no model change at
-all. The reasoning is kept here because each one had a non-obvious decision
-behind it.
+would have been worse than doing it once; nothing after them has needed a model
+change at all. The reasoning is kept here because each one had a non-obvious
+decision behind it.
 
 ### Edit an expense
 
@@ -127,6 +127,25 @@ field this needed.*
 `ShareLink` over a generated text block: who owes whom, the total, the expense
 list. Pure string building, zero framework cost, and it matches how people
 actually settle — pasted into the group chat.
+
+### Your standing on the group list
+
+The list showed each group's *total spent*, which is a fact about the trip and
+not about you — the number you actually came for was one tap away, on every
+group. Once the device knows who you are, the row leads with what you owe or are
+owed, tinted and captioned exactly as the member rows on the detail screen are.
+
+The total gives up its place rather than sharing the corner with the personal
+figure: two amounts side by side make each of them something to decode. Groups
+where identity hasn't been set read exactly as they always did.
+
+The word sequence came off the row at the same time. It is a label for pairing a
+new phone, printed next to the QR code on the share screen; on the list it was
+taking the line the standing now uses.
+
+*Cost: zero bytes. Reads the `ExpenseDefaults` identity the detail screen already
+writes, and the standing itself came out of `MemberBalanceRow` into a shared type
+so both screens phrase and colour a balance identically.*
 
 ---
 

@@ -129,7 +129,7 @@ struct GroupListView: View {
 // MARK: - Row
 
 private struct GroupRow: View {
-    /// Observed for the group's own fields — name, word sequence, share URL.
+    /// Observed for the group's own fields — name and share URL.
     @ObservedObject var group: ExpenseGroup
 
     /// The row's numbers come from fetch requests for the same reason the
@@ -139,6 +139,11 @@ private struct GroupRow: View {
     /// `Expense.request(in:)`.
     @FetchRequest private var members: FetchedResults<Person>
     @FetchRequest private var expenses: FetchedResults<Expense>
+
+    /// Which member is the person holding this phone, or `nil` if they haven't
+    /// said — in which case the row falls back to reporting the group as a
+    /// whole, which is all it could say before identity existed.
+    @State private var me: Person?
 
     init(group: ExpenseGroup) {
         self.group = group
@@ -153,31 +158,47 @@ private struct GroupRow: View {
         let settlement = group.settlement(members: Array(members), expenses: Array(expenses))
         let memberCount = members.count
         let expenseCount = expenses.count
+        let standing = me?.id.map { Standing(balance: settlement.balanceByParticipant[$0]) }
 
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline) {
                 identity(memberCount: memberCount, expenseCount: expenseCount)
                 Spacer(minLength: 12)
-                money(
-                    total: settlement.totalSpent,
-                    pending: settlement.transfers.count,
-                    alignment: .trailing
-                )
+                money(settlement, standing: standing, alignment: .trailing)
             }
 
             // Once names, currency and type size stop sharing a line, stack
             // rather than truncate.
             VStack(alignment: .leading, spacing: 8) {
                 identity(memberCount: memberCount, expenseCount: expenseCount)
-                money(
-                    total: settlement.totalSpent,
-                    pending: settlement.transfers.count,
-                    alignment: .leading
-                )
+                money(settlement, standing: standing, alignment: .leading)
             }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+        .accessibilityValue(
+            standing?.accessibleValue(isMe: true, currencyCode: group.currency)
+                ?? groupAccessibleValue(settlement)
+        )
+        .onAppear { resolveIdentity() }
+        // Identity is set on the detail screen, which sits directly on top of
+        // this list. `UserDefaults` is not observable and popping back doesn't
+        // re-run `onAppear` on a row that never left the screen, so without
+        // this the row would keep showing the group total until something else
+        // redrew it.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+            resolveIdentity()
+        }
+        .onChange(of: members.count) { resolveIdentity() }
+    }
+
+    /// Re-resolves against the current roster on every appearance, so an
+    /// identity whose member was deleted — here or on another device — quietly
+    /// falls back to the group-wide numbers instead of pointing at nothing.
+    private func resolveIdentity() {
+        let resolved = ExpenseDefaults.me(in: group, among: Array(members))
+        guard resolved != me else { return }
+        withAnimation(.snappy) { me = resolved }
     }
 
     @ViewBuilder
@@ -195,12 +216,9 @@ private struct GroupRow: View {
                 }
             }
 
-            if let sequence = group.wordSequence {
-                Text(sequence)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospaced()
-            }
+            // No word sequence here, deliberately: it is a label for pairing a
+            // new phone with a group and belongs next to the QR code on the
+            // share screen, not on the list somebody reads every day.
 
             // Both glyphs filled, both labelled: the old row mixed
             // `person.2.fill` with an outline `person` in the same group, and
@@ -217,21 +235,74 @@ private struct GroupRow: View {
         }
     }
 
+    /// The one number worth reading from the list.
+    ///
+    /// Once the device knows which member is holding it, that number is what
+    /// *they* owe or are owed — the question anyone opening a bill-splitting
+    /// app came to ask, and previously one tap away on every group. The group's
+    /// total spent gives up its place here rather than sharing the column with
+    /// it: two figures in the same corner make each of them a thing to decode,
+    /// and the total is the hero of the detail screen, which is a tap away.
+    ///
+    /// Without an identity there is no personal figure to show, so the row says
+    /// exactly what it always did.
     @ViewBuilder
-    private func money(total: Money, pending: Int, alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: 2) {
-            Text(total.formatted(in: group))
-                .font(.headline)
-                .monospacedDigit()
-                // The total changes whenever anyone adds an expense, including
-                // from another device — roll the digits so it's visible.
-                .contentTransition(.numericText())
+    private func money(
+        _ settlement: ExpenseGroup.Settlement,
+        standing: Standing?,
+        alignment: HorizontalAlignment
+    ) -> some View {
+        let pending = settlement.transfers.count
 
-            Text(pending == 0 ? "Settled up" : "\(pending) to settle")
-                .font(.caption2)
-                .foregroundStyle(pending == 0 ? .secondary : .primary)
+        VStack(alignment: alignment, spacing: 2) {
+            switch standing {
+            case .owes(let amount), .isOwed(let amount):
+                Text(amount.formatted(in: group))
+                    .font(.headline)
+                    .monospacedDigit()
+                    .foregroundStyle(standing?.tint ?? .primary)
+                    // The figure changes whenever anyone adds an expense,
+                    // including from another device — roll the digits so it's
+                    // visible.
+                    .contentTransition(.numericText())
+
+                Text(standing?.caption(isMe: true) ?? "")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+            case .settled:
+                Text("Settled up")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+
+                // Being square with everyone doesn't mean the group is done,
+                // and a row that stopped at "Settled up" hid that.
+                Text(pending == 0 ? "everyone's even" : "\(pending) to settle")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+            case nil:
+                Text(settlement.totalSpent.formatted(in: group))
+                    .font(.headline)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+
+                Text(pending == 0 ? "Settled up" : "\(pending) to settle")
+                    .font(.caption2)
+                    .foregroundStyle(pending == 0 ? .secondary : .primary)
+            }
         }
-        .animation(.snappy, value: total)
+        .animation(.snappy, value: standing)
+        .animation(.snappy, value: settlement.totalSpent)
+    }
+
+    /// What the row says to VoiceOver when it has no personal figure to report.
+    private func groupAccessibleValue(_ settlement: ExpenseGroup.Settlement) -> String {
+        let total = settlement.totalSpent.formatted(in: group)
+        let pending = settlement.transfers.count
+        return pending == 0
+            ? "\(total) total, settled up"
+            : "\(total) total, \(pending) payments to settle"
     }
 }
 

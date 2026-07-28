@@ -521,38 +521,7 @@ private struct MemberBalanceRow: View {
     /// from a statement about someone else into one about them.
     let isMe: Bool
 
-    /// Where a member stands. Modelled as three cases rather than a sign test
-    /// so that "even" is its own state — the previous version rendered a zero
-    /// balance in green, which reads as being owed money.
-    private enum Standing {
-        case owes(Money)
-        case isOwed(Money)
-        case settled
-
-        var tint: Color {
-            switch self {
-            case .owes: .red
-            case .isOwed: .green
-            case .settled: .secondary
-            }
-        }
-
-        /// Redundant to the colour on purpose. Colour alone can't carry the
-        /// difference between owing and being owed: it fails for anyone with a
-        /// red/green deficiency, and VoiceOver never sees it at all.
-        func caption(isMe: Bool) -> String {
-            switch self {
-            case .owes: isMe ? "you owe" : "owes"
-            case .isOwed: isMe ? "you are owed" : "is owed"
-            case .settled: "settled up"
-            }
-        }
-    }
-
-    private var standing: Standing {
-        guard let balance, !balance.isZero else { return .settled }
-        return balance < .zero ? .owes(balance.magnitude) : .isOwed(balance)
-    }
+    private var standing: Standing { Standing(balance: balance) }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -597,18 +566,7 @@ private struct MemberBalanceRow: View {
         .animation(.snappy, value: balance)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isMe ? "\(name), you" : name)
-        .accessibilityValue(accessibleValue)
-    }
-
-    private var accessibleValue: String {
-        switch standing {
-        case .owes(let amount):
-            "\(isMe ? "You owe" : "Owes") \(amount.formatted(currencyCode: currencyCode))"
-        case .isOwed(let amount):
-            "\(isMe ? "You are owed" : "Is owed") \(amount.formatted(currencyCode: currencyCode))"
-        case .settled:
-            "Settled up"
-        }
+        .accessibilityValue(standing.accessibleValue(isMe: isMe, currencyCode: currencyCode))
     }
 }
 
