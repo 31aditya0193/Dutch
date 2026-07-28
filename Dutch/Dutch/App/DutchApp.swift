@@ -1,17 +1,85 @@
-import SwiftUI
+import AppIntents
 import CloudKit
+import SwiftUI
+import UIKit
 
 @main
 struct DutchApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    @Environment(\.scenePhase) private var scenePhase
+
     private let persistenceController = PersistenceController.shared
+
+    init() {
+        // Tells the system what this app's shortcuts take as parameters, so
+        // the group picker in Shortcuts and Siri is populated rather than
+        // empty. Cheap, and it has to happen before anything can run one.
+        DutchShortcuts.updateAppShortcutParameters()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.viewContext)
         }
+        // On the way to the background, not on the way in: the group the user
+        // was last in is only settled once they stop looking at it, and
+        // rewriting the quick action mid-session would change the Home Screen
+        // under a menu somebody might have open.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { refreshQuickActions() }
+        }
+    }
+
+    /// Names the Home Screen quick action after the group it will open.
+    ///
+    /// "New Expense · Berlin Trip" says what the long-press will actually do,
+    /// which matters because it does something different depending on where the
+    /// user was last.
+    ///
+    /// Rewritten rather than left alone when there is no group, because setting
+    /// `shortcutItems` replaces the static item from `Dutch-Info.plist` for
+    /// good: a group that has since been deleted would otherwise keep its name
+    /// on the Home Screen, pointing at nothing.
+    @MainActor
+    private func refreshQuickActions() {
+        let name = GroupLookup
+            .lastOpened(in: persistenceController.viewContext)?
+            .name
+
+        UIApplication.shared.shortcutItems = [
+            UIApplicationShortcutItem(
+                type: QuickAction.newExpense,
+                localizedTitle: "New Expense",
+                localizedSubtitle: name,
+                icon: UIApplicationShortcutIcon(systemImageName: "plus.circle"),
+                userInfo: nil
+            )
+        ]
+    }
+}
+
+// MARK: - Quick Actions
+
+/// The Home Screen quick action types, shared between the plist and the code
+/// that handles them.
+///
+/// A mistyped identifier here is a long-press that does nothing at all, with no
+/// error anywhere — so the string exists once.
+enum QuickAction {
+    /// Must match `UIApplicationShortcutItemType` in `Dutch-Info.plist`.
+    static let newExpense = "net.smigi.Dutch.newExpense"
+
+    /// Routes an activated quick action, if it is one this app knows.
+    ///
+    /// Falls through to the last opened group, exactly as `NewExpenseIntent`
+    /// does — the two are the same action reached two ways, and they must not
+    /// disagree about which group that means.
+    @MainActor
+    static func handle(_ item: UIApplicationShortcutItem) {
+        guard item.type == newExpense else { return }
+        AppRouter.shared.open(ExpenseDefaults.lastOpenedGroupID.map { .newExpense(in: $0) })
     }
 }
 
@@ -46,7 +114,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
 // MARK: - Scene Delegate
 
-/// Handles accepted CloudKit share invitations.
+/// Handles accepted CloudKit share invitations and Home Screen quick actions.
 ///
 /// This has to live on the *scene* delegate. The `UIApplicationDelegate`
 /// equivalent is never called in a scene-based app, which is a quiet way to end
@@ -63,5 +131,29 @@ final class SceneDelegate: NSObject, UIWindowSceneDelegate {
                 print("[Dutch] Failed to accept share: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// A quick action tapped while the app was already running.
+    func windowScene(
+        _ windowScene: UIWindowScene,
+        performActionFor shortcutItem: UIApplicationShortcutItem,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        MainActor.assumeIsolated { QuickAction.handle(shortcutItem) }
+        completionHandler(true)
+    }
+
+    /// A quick action tapped when the app wasn't running.
+    ///
+    /// Both paths are needed. The system delivers a cold-launch action here and
+    /// never calls the method above for it, so handling only that one gives a
+    /// quick action that works — until you actually quit the app.
+    func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        guard let item = connectionOptions.shortcutItem else { return }
+        MainActor.assumeIsolated { QuickAction.handle(item) }
     }
 }

@@ -41,6 +41,11 @@ public enum WordGenerator {
 
     /// Separators accepted when parsing, so sequences written by hand or by
     /// an older build still validate.
+    ///
+    /// Whitespace counts too, and is handled in `split` rather than listed
+    /// here: a sequence read aloud to Siri, or typed into a search field by
+    /// someone who saw it printed, arrives as `"green moon tea"`. Refusing that
+    /// would mean a label people can say out loud but not search for.
     static let recognisedSeparators: Set<Character> = ["-", ".", "~"]
 
     // MARK: - Generation
@@ -82,10 +87,27 @@ public enum WordGenerator {
         return words.allSatisfy(vocabulary.contains)
     }
 
+    /// Rewrites a sequence into the exact form `generate()` produces, so two
+    /// spellings of the same label compare equal.
+    ///
+    /// `"Green Moon Tea"`, `"green.moon.tea"` and `"green-moon-tea"` all
+    /// normalise to the last of those. Callers matching a user's input against
+    /// a stored sequence should compare normalised forms rather than raw
+    /// strings — the stored one was always written by `generate()`, and the
+    /// typed one never was.
+    ///
+    /// Says nothing about whether the words are real: an unrecognisable
+    /// sequence normalises to an unrecognisable sequence. `isWellFormed` is the
+    /// question about vocabulary, and neither is a question about access — see
+    /// the note at the top of this type.
+    public static func normalised(_ sequence: String) -> String {
+        split(sequence).joined(separator: separator)
+    }
+
     static func split(_ sequence: String) -> [String] {
         sequence
             .lowercased()
-            .split(whereSeparator: recognisedSeparators.contains)
+            .split { recognisedSeparators.contains($0) || $0.isWhitespace }
             .map(String.init)
     }
 }

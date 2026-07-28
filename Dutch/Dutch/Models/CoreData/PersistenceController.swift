@@ -18,6 +18,21 @@ final class PersistenceController {
     /// Must match the iCloud container in `Dutch.entitlements`.
     static let cloudKitContainerIdentifier = "iCloud.app.dutch.Dutch"
 
+    /// Must match the app group in `Dutch.entitlements`.
+    ///
+    /// The stores live here rather than in the app's own container so that a
+    /// second process on the same device can open them. An extension — the
+    /// widget on the roadmap, or an App Intents extension — has a container of
+    /// its own and simply cannot reach the app's; it would find no file and
+    /// report an empty database rather than fail loudly.
+    ///
+    /// Unlike the iCloud container this one *is* prefixed with the bundle id,
+    /// because an app group identifier has to be one the team owns and the
+    /// bundle id is the obvious such name. Moving it later would strand every
+    /// existing store, so it is fixed here for the same reason the iCloud
+    /// container is.
+    static let appGroupIdentifier = "group.net.smigi.Dutch"
+
     /// Loaded exactly once and shared by every container.
     ///
     /// Letting each container load its own copy produces duplicate
@@ -109,10 +124,28 @@ final class PersistenceController {
         }
     }
 
+    /// Where the two store files live.
+    ///
+    /// The app group container when it is available, and the container Core
+    /// Data picked otherwise. The fallback is deliberate: an entitlement that
+    /// hasn't been provisioned yet returns `nil` here, and degrading to the
+    /// app's own container costs a widget its data — while trapping would cost
+    /// the user their app.
+    private static func storeDirectory(fallingBackTo url: URL) -> URL {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
+            ?? url.deletingLastPathComponent()
+    }
+
     private func configureCloudKitStores(privateDescription: NSPersistentStoreDescription) {
-        guard let privateURL = privateDescription.url else {
+        guard let defaultURL = privateDescription.url else {
             fatalError("The private store description has no URL.")
         }
+
+        // Both stores keep the filenames Core Data chose, in whichever
+        // directory is reachable from every process that needs them.
+        let directory = Self.storeDirectory(fallingBackTo: defaultURL)
+        privateDescription.url = directory.appendingPathComponent(defaultURL.lastPathComponent)
 
         // History tracking is a hard requirement for CloudKit mirroring, and
         // the remote-change notification is what lets the UI react to syncs.
@@ -133,9 +166,7 @@ final class PersistenceController {
         guard let sharedDescription = privateDescription.copy() as? NSPersistentStoreDescription else {
             fatalError("Could not derive the shared store description.")
         }
-        sharedDescription.url = privateURL
-            .deletingLastPathComponent()
-            .appendingPathComponent("Dutch-shared.sqlite")
+        sharedDescription.url = directory.appendingPathComponent("Dutch-shared.sqlite")
 
         let sharedOptions = NSPersistentCloudKitContainerOptions(
             containerIdentifier: Self.cloudKitContainerIdentifier

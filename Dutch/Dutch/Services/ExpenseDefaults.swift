@@ -18,7 +18,18 @@ import DutchKit
 /// prefills and labels — so a stale value costs a correction, never a wrong
 /// number.
 enum ExpenseDefaults {
-    private static let store = UserDefaults.standard
+    /// The app group suite rather than `.standard`, for the same reason the
+    /// Core Data stores moved there: a second process on this device — the
+    /// widget on the roadmap — has its own `.standard` and would see none of
+    /// this. Identity in particular is what lets a widget say "you owe" rather
+    /// than reporting the group's total, which is the whole point of it.
+    ///
+    /// Falls back to `.standard` if the group is unavailable, so an
+    /// unprovisioned entitlement costs a widget its data rather than costing
+    /// the user their prefills.
+    private static let store = UserDefaults(
+        suiteName: PersistenceController.appGroupIdentifier
+    ) ?? .standard
 
     /// The key prefixes, in one place, because `forget(_:)` has to be able to
     /// clear everything this type writes.
@@ -31,6 +42,15 @@ enum ExpenseDefaults {
 
         func key(for id: UUID) -> String { "\(rawValue).\(id.uuidString)" }
     }
+
+    /// Which group the user was last looking at.
+    ///
+    /// The one key here that isn't per-group, so it sits outside `Namespace`:
+    /// it names a group rather than describing one. It exists so that "add an
+    /// expense" can mean something without a group being said out loud — from
+    /// the Action button, from the Home Screen icon, or from Siri — which is
+    /// the difference between a five-second entry and a conversation.
+    private static let lastOpenedGroupKey = "lastOpenedGroup"
 
     private static func payerKey(for group: ExpenseGroup) -> String? {
         group.id.map(Namespace.payer.key(for:))
@@ -140,6 +160,23 @@ enum ExpenseDefaults {
         store.set(id.uuidString, forKey: key)
     }
 
+    // MARK: - Last opened
+
+    /// The group the user most recently opened, if it still exists.
+    ///
+    /// Returns the raw id rather than resolving it: the callers that want this
+    /// are intents and the scene delegate, which have no fetched roster to
+    /// resolve against and would each have to fetch anyway. `GroupLookup` turns
+    /// it into a group.
+    static var lastOpenedGroupID: UUID? {
+        store.string(forKey: lastOpenedGroupKey).flatMap(UUID.init(uuidString:))
+    }
+
+    static func rememberOpened(_ group: ExpenseGroup) {
+        guard let id = group.id else { return }
+        store.set(id.uuidString, forKey: lastOpenedGroupKey)
+    }
+
     // MARK: - Cleanup
 
     /// Drops a deleted group's entries, so the keys don't accumulate for groups
@@ -155,6 +192,14 @@ enum ExpenseDefaults {
         for key in store.dictionaryRepresentation().keys
         where prefixes.contains(where: key.hasPrefix) {
             store.removeObject(forKey: key)
+        }
+
+        // Separately, because this key holds an id rather than being keyed by
+        // one. Left behind it would point the Action button and the Home Screen
+        // action at a group that no longer exists, which is a launch into
+        // nothing rather than a stale prefill.
+        if lastOpenedGroupID == id {
+            store.removeObject(forKey: lastOpenedGroupKey)
         }
     }
 }

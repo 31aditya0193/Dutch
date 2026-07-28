@@ -40,6 +40,11 @@ struct GroupListView: View {
     /// silently swallowed.
     @State private var groupToOpen: ExpenseGroup?
 
+    /// Where an App Intent or the Home Screen quick action wants the app to be.
+    /// This screen owns the navigation path, so it is the only thing that can
+    /// act on one.
+    private var router: AppRouter { AppRouter.shared }
+
     private var store: GroupStore { GroupStore(context: context) }
 
     var body: some View {
@@ -94,6 +99,11 @@ struct GroupListView: View {
                 JoinGroupView()
             }
             .errorBanner($errorMessage)
+            // Both, because an intent can arrive either way: on a cold launch
+            // the destination is already set by the time this appears, and on a
+            // warm one it changes while the list is on screen.
+            .onAppear(perform: followRouter)
+            .onChange(of: router.destination) { followRouter() }
         }
     }
 
@@ -112,6 +122,31 @@ struct GroupListView: View {
             )
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Pushes the group an intent or a Home Screen action asked for.
+    ///
+    /// The path is set rather than appended to, so arriving from outside always
+    /// lands on that group whatever was on screen before — and so a second
+    /// invocation doesn't stack the same group twice.
+    ///
+    /// `.newExpense` is left in place rather than cleared: `GroupDetailView`
+    /// consumes it once it is on screen and can open its own sheet. Clearing it
+    /// here would push the group and then swallow the reason for the push.
+    private func followRouter() {
+        guard let destination = router.destination else { return }
+        guard let group = GroupLookup.group(id: destination.groupID, in: context) else {
+            // The group was deleted, or the invitation was never accepted on
+            // this device. Saying so beats a tap that appears to do nothing.
+            router.destination = nil
+            errorMessage = "That group isn't on this device."
+            return
+        }
+
+        path = [group]
+        if case .group = destination {
+            router.destination = nil
         }
     }
 

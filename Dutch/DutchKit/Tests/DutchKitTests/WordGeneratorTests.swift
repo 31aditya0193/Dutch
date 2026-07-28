@@ -55,6 +55,27 @@ struct WordGeneratorTests {
         #expect(!WordGenerator.isWellFormed("https://www.icloud.com/share/abc"))
     }
 
+    @Test("A spoken or hand-typed sequence normalises to the stored form")
+    func normalisation() {
+        // What Siri hears, what someone copying it off a share screen types,
+        // and what an older build wrote — all one label.
+        #expect(WordGenerator.normalised("coral lotus pearl") == "coral-lotus-pearl")
+        #expect(WordGenerator.normalised("Coral Lotus Pearl") == "coral-lotus-pearl")
+        #expect(WordGenerator.normalised("coral.lotus.pearl") == "coral-lotus-pearl")
+        #expect(WordGenerator.normalised("  coral-lotus-pearl  ") == "coral-lotus-pearl")
+        // Already canonical, and stays that way.
+        #expect(WordGenerator.normalised("coral-lotus-pearl") == "coral-lotus-pearl")
+    }
+
+    @Test("Normalising says nothing about whether the words are real")
+    func normalisationIsNotValidation() {
+        #expect(WordGenerator.normalised("zzzz qqqq") == "zzzz-qqqq")
+        #expect(!WordGenerator.isWellFormed("zzzz qqqq"))
+        // But a real sequence read aloud still validates, which is the point of
+        // accepting whitespace as a separator at all.
+        #expect(WordGenerator.isWellFormed("coral lotus pearl"))
+    }
+
     @Test("Generation is reproducible for a given seed")
     func seededGeneration() {
         var first = SeededGenerator(seed: 42)

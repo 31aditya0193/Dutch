@@ -24,11 +24,11 @@ any of those. Watch the asset catalog, not the code.
 - iCloud sync and group sharing by QR code
 - Expenses entered in a foreign currency, converted once at entry
 
-**Added since:** the seven below. The first four were built together because two
+**Added since:** the eight below. The first four were built together because two
 of them shared a single Core Data version bump and doing that migration twice
-would have been worse than doing it once; nothing after them has needed a model
-change at all. The reasoning is kept here because each one had a non-obvious
-decision behind it.
+would have been worse than doing it once; only the group's symbol and colour
+have needed a model change since. The reasoning is kept here because each one
+had a non-obvious decision behind it.
 
 ### Edit an expense
 
@@ -147,16 +147,57 @@ taking the line the standing now uses.
 writes, and the standing itself came out of `MemberBalanceRow` into a shared type
 so both screens phrase and colour a balance identically.*
 
+### App Intents and Shortcuts
+
+Every one of the five seconds this app exists to save was being spent inside it:
+unlock, find the icon, tap the group, tap Add Expense. Three actions now reach
+past all of that — from Siri, the Action button, Spotlight, the Shortcuts app,
+and a long press on the icon.
+
+**New Expense** opens the form on a group. **Add Expense** records one without
+launching at all. **Check Balance** answers the only question anybody opens a
+bill-splitting app to ask. All three default to the group you last opened, which
+is what makes them worth having: "add an expense", said mid-trip, means *this*
+trip, and having to name the group every time turns a five-second entry into a
+conversation. With exactly one group on the phone it doesn't even need that.
+
+Two decisions carried real weight.
+
+**Who paid is the device's identity**, not a parameter. iOS 17 has no
+`@IntentParameterDependency`, so a payer picker could not be narrowed to the
+members of the chosen group — it would offer everybody from every group, and
+recording an expense against someone who isn't in it is a wrong balance that
+nothing on screen would flag. Asking the user to say who they are once is the
+cheaper mistake. Without an identity the intent refuses and names the gesture
+that fixes it.
+
+**Amounts are in the group's own currency.** A foreign receipt needs a rate,
+rates are frozen at entry on purpose, and there is no way to ask "at what rate?"
+in a voice flow without guessing — which is precisely the failure that decision
+exists to prevent. Foreign receipts go through the form, and so do uneven splits.
+
+`AddExpenseIntent` gets no confirmation step, deliberately: confirming would
+spend the time this exists to save. Instead the reply states the figure and the
+group it landed in, phrased through the same `Standing` type the screens use, so
+a mishearing is audible immediately — and a wrong entry is one swipe to delete.
+
+The word sequence became useful here for the first time since it was printed
+next to the QR code: `EntityStringQuery` resolves "green moon tea" as readily as
+"Berlin Trip". It still grants nothing — it searches groups the device already
+has, and access comes only from the CloudKit share.
+
+**The stores moved into an app group** as part of this, along with
+`ExpenseDefaults`. Nothing here needed it; the widget below does, and a widget
+is a separate process that cannot open the app's own container. Doing it once
+the app has users would mean abandoning every local store, so it was done while
+that costs nothing.
+
+*Cost: a few KB of intent definitions. `AppIntents` ships with the OS. No model
+change; `GroupStore.addExpense` already took every field this needed.*
+
 ---
 
 ## Next
-
-### 6. App Intents / Shortcuts
-
-"Add 60 to green-moon-tea" from Siri or the Action button, no app launch. The
-highest speed-per-kilobyte item on the list, and a natural fit for an app whose
-whole point is entering a number in five seconds. `AppIntents` is system-provided;
-only the intent definitions land in the binary.
 
 ### 7. Member avatars from SF Symbols
 
@@ -174,6 +215,11 @@ is the member's name, not the glyph.
 
 "You owe €120 · green-moon-tea". A WidgetKit extension reading the same store.
 Depends on knowing who you are, above. A couple hundred KB for the extension binary.
+
+The awkward part is already done: both the Core Data stores and `ExpenseDefaults`
+live in `group.net.smigi.Dutch`, so the extension can open them. That was the one
+piece of this that would have been expensive to retrofit — moving a store after
+people have data in it abandons whatever hadn't synced.
 
 ### 10. Categories
 

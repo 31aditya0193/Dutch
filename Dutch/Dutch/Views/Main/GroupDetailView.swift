@@ -46,6 +46,10 @@ struct GroupDetailView: View {
 
     private var store: GroupStore { GroupStore(context: context) }
 
+    /// Consulted for a pending `.newExpense`, which `GroupListView` pushes this
+    /// screen for but cannot act on — the form is a sheet belonging here.
+    private var router: AppRouter { AppRouter.shared }
+
     var body: some View {
         // Gathered once and passed down. Read as computed properties these were
         // re-evaluated at every mention: one full settlement per member row,
@@ -129,7 +133,35 @@ struct GroupDetailView: View {
         // Resolved against the current roster on every appearance, so an
         // identity whose member was deleted — here or on another device —
         // quietly falls back to third person instead of pointing at nothing.
-        .onAppear { me = ExpenseDefaults.me(in: group, among: contents.members) }
+        .onAppear {
+            me = ExpenseDefaults.me(in: group, among: contents.members)
+            // What makes "add an expense" mean something without a group being
+            // named — from the Action button, the Home Screen icon, or Siri.
+            // Recorded on arrival rather than on any edit, because the question
+            // it answers is "which trip am I on", and opening a group is the
+            // whole of the evidence for that.
+            ExpenseDefaults.rememberOpened(group)
+            openPendingExpense()
+        }
+        .onChange(of: router.destination) { openPendingExpense() }
+    }
+
+    /// Opens the form if an intent asked for a new expense *in this group*.
+    ///
+    /// Checked against the group rather than taken on trust: the destination is
+    /// global, and this screen can be on top of a different group entirely when
+    /// one arrives. Consumed either way once acted on, so returning here later
+    /// doesn't reopen the sheet.
+    private func openPendingExpense() {
+        guard case .newExpense(let id) = router.destination, id == group.id else { return }
+        router.destination = nil
+        // Nothing to enter until somebody can be charged for it, and the form
+        // would open with an empty roster and a disabled Save.
+        guard !members.isEmpty else {
+            errorMessage = "Add a member to this group first."
+            return
+        }
+        showingAddExpense = true
     }
 
     // MARK: - Sections
