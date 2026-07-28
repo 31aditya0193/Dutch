@@ -164,13 +164,33 @@ extension ExpenseGroup {
     }
 
     /// Computes the group's settlement in a single pass over its members and
-    /// expenses.
+    /// expenses, as read off the relationships.
     ///
     /// A method rather than a property, deliberately: this is not free, and a
     /// call site should read like it costs something. Take one per render and
     /// pass it down — don't call it per row.
+    ///
+    /// Screens should prefer `settlement(members:expenses:)` with fetched
+    /// results. The relationship sets are a snapshot that SwiftUI has no way to
+    /// observe, so a view built on this one goes stale the moment somebody
+    /// edits an expense — see `Person.request(in:)`.
     func settlement() -> Settlement {
-        let roster = roster
+        settlement(
+            members: Array((members as? Set<Person>) ?? []),
+            expenses: Array(expenseSet)
+        )
+    }
+
+    /// The same computation over members and expenses the caller already holds,
+    /// so a view can drive it from `@FetchRequest` rather than from the
+    /// relationship sets.
+    ///
+    /// Order of the arguments doesn't matter: the roster is sorted here, which
+    /// is what keeps the greedy transfer list stable between call sites.
+    func settlement(members: [Person], expenses: [Expense]) -> Settlement {
+        let roster = members
+            .compactMap(\.participant)
+            .sorted { $0.name < $1.name }
 
         // One walk for both answers. Every expense feeds the balances —
         // payments included, since they are what clears a debt — while only
@@ -179,7 +199,7 @@ extension ExpenseGroup {
         var totalSpent = Money.zero
         var spendingCount = 0
 
-        for expense in expenseSet {
+        for expense in expenses {
             guard let entry = expense.entry else { continue }
             entries.append(entry)
             guard !expense.isReimbursement else { continue }

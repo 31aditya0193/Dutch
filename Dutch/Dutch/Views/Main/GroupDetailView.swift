@@ -9,8 +9,22 @@ import DutchKit
 /// the log. The settlement is the answer the user came for; the expense list is
 /// reference material, and used to sit above it.
 struct GroupDetailView: View {
-    /// Observed so edits arriving from CloudKit redraw the detail screen.
+    /// Observed for the group's own fields — its name and currency.
     @ObservedObject var group: ExpenseGroup
+
+    /// The contents come from fetch requests rather than from `group.members`
+    /// and `group.expenses`, so that *editing* an expense recomputes the
+    /// balances. Observing the group alone only catches changes to the group
+    /// itself, and correcting an amount never touches it. See
+    /// `Expense.request(in:)`.
+    @FetchRequest private var members: FetchedResults<Person>
+    @FetchRequest private var expenses: FetchedResults<Expense>
+
+    init(group: ExpenseGroup) {
+        self.group = group
+        _members = FetchRequest(fetchRequest: Person.request(in: group), animation: .snappy)
+        _expenses = FetchRequest(fetchRequest: Expense.request(in: group), animation: .snappy)
+    }
 
     @Environment(\.managedObjectContext) private var context
 
@@ -36,7 +50,11 @@ struct GroupDetailView: View {
         // re-evaluated at every mention: one full settlement per member row,
         // two more for the Settle Up section, and the member and expense sets
         // sorted four times each.
-        let contents = Contents(group: group)
+        let contents = Contents(
+            group: group,
+            members: Array(members),
+            expenses: Array(expenses)
+        )
 
         List {
             summarySection(contents)
@@ -450,12 +468,9 @@ private struct Contents {
     /// settlement.
     let summary: GroupSummary
 
-    init(group: ExpenseGroup) {
-        let roster = (group.members as? Set<Person>)?
-            .sorted { ($0.name ?? "") < ($1.name ?? "") } ?? []
-        let log = (group.expenses as? Set<Expense>)?
-            .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) } ?? []
-
+    /// Takes the roster and the log already sorted, because they arrive from
+    /// fetch requests that sorted them in SQLite — see `Person.request(in:)`.
+    init(group: ExpenseGroup, members roster: [Person], expenses log: [Expense]) {
         members = roster
         expenses = log
 
@@ -464,7 +479,7 @@ private struct Contents {
             uniquingKeysWith: { first, _ in first }
         )
 
-        let settlement = group.settlement()
+        let settlement = group.settlement(members: roster, expenses: log)
         balances = settlement.balanceByParticipant
         transfers = settlement.transfers
         totalSpent = settlement.totalSpent

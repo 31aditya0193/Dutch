@@ -18,21 +18,14 @@ struct GroupListView: View {
     )
     private var groups: FetchedResults<ExpenseGroup>
 
-    /// Every row totals its group and works out who still owes whom, which
-    /// reaches through all four relationships. Left to fault on demand that is
-    /// a separate main-thread round trip to SQLite per relationship per row,
-    /// paid while the list is scrolling; prefetching folds them into the one
-    /// fetch that produced the rows.
+    /// Only the groups. Each row fetches its own contents — and prefetches the
+    /// relationships the settlement walks — because a row that read them off
+    /// the relationship sets could not see an expense being edited. See
+    /// `Expense.request(in:)`.
     private static var groupsRequest: NSFetchRequest<ExpenseGroup> {
         let request = ExpenseGroup.fetchRequest()
         request.sortDescriptors = [
             NSSortDescriptor(keyPath: \ExpenseGroup.creationDate, ascending: false)
-        ]
-        request.relationshipKeyPathsForPrefetching = [
-            "members",
-            "expenses",
-            "expenses.paidBy",
-            "expenses.splitAmong",
         ]
         return request
     }
@@ -136,15 +129,30 @@ struct GroupListView: View {
 // MARK: - Row
 
 private struct GroupRow: View {
+    /// Observed for the group's own fields — name, word sequence, share URL.
     @ObservedObject var group: ExpenseGroup
+
+    /// The row's numbers come from fetch requests for the same reason the
+    /// detail screen's do: an expense edited anywhere changes the `Expense`
+    /// and nothing on the group, so a row reading the relationship set keeps
+    /// showing the total it had when it was last built. See
+    /// `Expense.request(in:)`.
+    @FetchRequest private var members: FetchedResults<Person>
+    @FetchRequest private var expenses: FetchedResults<Expense>
+
+    init(group: ExpenseGroup) {
+        self.group = group
+        _members = FetchRequest(fetchRequest: Person.request(in: group))
+        _expenses = FetchRequest(fetchRequest: Expense.request(in: group))
+    }
 
     var body: some View {
         // One settlement per row. `totalSpent` and `transfers` were separate
         // walks of the same expenses, and `transfers` rebuilt the balances on
         // top of that — three passes to render two numbers.
-        let settlement = group.settlement()
-        let memberCount = group.members?.count ?? 0
-        let expenseCount = group.expenses?.count ?? 0
+        let settlement = group.settlement(members: Array(members), expenses: Array(expenses))
+        let memberCount = members.count
+        let expenseCount = expenses.count
 
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline) {
