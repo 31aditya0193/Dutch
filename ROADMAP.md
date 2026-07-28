@@ -122,6 +122,12 @@ and paying the same debt twice is a mistake rather than a shortcut.
 *Cost: zero bytes. No model change; `GroupStore.addExpense` already took every
 field this needed.*
 
+### Share a summary
+
+`ShareLink` over a generated text block: who owes whom, the total, the expense
+list. Pure string building, zero framework cost, and it matches how people
+actually settle — pasted into the group chat.
+
 ---
 
 ## Next
@@ -149,12 +155,6 @@ is the member's name, not the glyph.
 
 "You owe €120 · green-moon-tea". A WidgetKit extension reading the same store.
 Depends on knowing who you are, above. A couple hundred KB for the extension binary.
-
-### 9. Share a summary
-
-`ShareLink` over a generated text block: who owes whom, the total, the expense
-list. Pure string building, zero framework cost, and it matches how people
-actually settle — pasted into the group chat.
 
 ### 10. Categories
 
