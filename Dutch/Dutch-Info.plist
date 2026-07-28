@@ -6,23 +6,13 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
-	<!-- The static quick action, so a fresh install has one before any group
-	     has been opened. Replaced at runtime by a copy subtitled with the group
-	     you were last in — see DutchApp.refreshQuickActions().
+	<!-- No UIApplicationShortcutItems here, deliberately. The quick action is
+	     registered at runtime by DutchApp.refreshQuickActions() so it can name
+	     the group it will open.
 
-	     Here rather than in an INFOPLIST_KEY_ build setting because the value
-	     is an array, and that mechanism silently drops array values. That is
-	     how this app once went months without its background modes. -->
-	<key>UIApplicationShortcutItems</key>
-	<array>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>net.smigi.Dutch.newExpense</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>New Expense</string>
-			<key>UIApplicationShortcutItemIconSymbolName</key>
-			<string>plus.circle</string>
-		</dict>
-	</array>
+	     A static twin is not a fallback for that, it is a duplicate: the system
+	     shows the static list *and* the dynamic one, and setting
+	     UIApplication.shortcutItems never replaces the plist entry. With both
+	     defined the menu carried two "New Expense" rows doing the same thing. -->
 </dict>
 </plist>

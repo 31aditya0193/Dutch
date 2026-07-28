@@ -38,10 +38,14 @@ struct DutchApp: App {
     /// which matters because it does something different depending on where the
     /// user was last.
     ///
-    /// Rewritten rather than left alone when there is no group, because setting
-    /// `shortcutItems` replaces the static item from `Dutch-Info.plist` for
-    /// good: a group that has since been deleted would otherwise keep its name
-    /// on the Home Screen, pointing at nothing.
+    /// This is the *only* place the quick action is defined. There is no static
+    /// twin in `Dutch-Info.plist`, because the system shows the static list and
+    /// the dynamic one together — `shortcutItems` is the dynamic list alone and
+    /// never replaces the plist. Defining both put two identical "New Expense"
+    /// rows in the menu.
+    ///
+    /// Written unconditionally, including with no group: a deleted group would
+    /// otherwise keep its name on the Home Screen, pointing at nothing.
     @MainActor
     private func refreshQuickActions() {
         let name = GroupLookup
