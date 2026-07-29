@@ -13,6 +13,16 @@ cost approximately nothing. What would actually breach 3 MB is bundled fonts,
 image assets, an embedded rate database, or CoreML. None of the work below needs
 any of those. Watch the asset catalog, not the code.
 
+**Raising the deployment target is not a size lever.** Measured 2026-07-29 by
+archiving twice against SDK 27.0, `minos` verified with `vtool`: iOS 17 gives a
+2128 KB bundle, iOS 26 gives 2112 KB, and `Assets.car` is byte-identical at
+1076 KB. Sixteen kilobytes, all of it back-deployment thunks in `__text`. Nor is
+it a speed lever — SwiftUI and Core Data ship with the OS and run the same code
+either way — and Liquid Glass is already active regardless, because adoption
+keys off the *linked SDK* rather than `minos`. Raise the floor only to reach a
+named API, and say which: today the only two that would matter are
+`IndexedEntity` (18.0) and `FoundationModels` (26.0).
+
 ---
 
 ## Shipped
@@ -163,13 +173,19 @@ conversation. With exactly one group on the phone it doesn't even need that.
 
 Two decisions carried real weight.
 
-**Who paid is the device's identity**, not a parameter. iOS 17 has no
-`@IntentParameterDependency`, so a payer picker could not be narrowed to the
-members of the chosen group — it would offer everybody from every group, and
-recording an expense against someone who isn't in it is a wrong balance that
-nothing on screen would flag. Asking the user to say who they are once is the
-cheaper mistake. Without an identity the intent refuses and names the gesture
-that fixes it.
+**Who paid is the device's identity**, not a parameter. A payer picker that
+could not be narrowed to the members of the chosen group would offer everybody
+from every group, and recording an expense against someone who isn't in it is a
+wrong balance that nothing on screen would flag. Asking the user to say who they
+are once is the cheaper mistake. Without an identity the intent refuses and
+names the gesture that fixes it.
+
+*Correction, checked against the iOS 27 SDK on 2026-07-29:* this was written
+here as "iOS 17 has no `@IntentParameterDependency`", which is wrong — it is
+annotated `@available(iOS 17.0)`, and only its `Hashable` conformance is 18.0.
+So the narrowed picker may in fact be reachable at the current floor. Nobody has
+tried it; the identity decision stands on its own merits either way, but the
+stated blocker was not real.
 
 **Amounts are in the group's own currency.** A foreign receipt needs a rate,
 rates are frozen at entry on purpose, and there is no way to ask "at what rate?"
@@ -194,6 +210,44 @@ that costs nothing.
 
 *Cost: a few KB of intent definitions. `AppIntents` ships with the OS. No model
 change; `GroupStore.addExpense` already took every field this needed.*
+
+### Spotlight indexing
+
+The App Intents above put three *actions* in Spotlight; they left the groups
+themselves unfindable. Typing "Berlin" on the home screen now lands in the trip.
+
+**Groups only, not expenses.** An expense has nowhere of its own to open — there
+is no expense screen, so every hit could only land on its group anyway — and
+titles like "Dinner" or "Taxi" repeat across every trip anybody has ever taken,
+which turns one useful result into forty indistinguishable ones. Groups are few,
+individually named, and each one is already a destination.
+
+**The whole set is rewritten on every change rather than diffed.** That sounds
+wasteful and isn't: a device holds a handful of groups. The alternative is
+remembering which identifiers were written last time in order to know which to
+delete, which is bookkeeping living outside Core Data that would drift from it
+the first time a save failed halfway. Clearing by domain identifier means the
+index cannot hold a group that no longer exists, whatever happened.
+
+Reindexing is triggered by **both** `NSManagedObjectContextDidSave` and
+`NSPersistentStoreRemoteChange`, because neither is a superset of the other: a
+group created here never produces a remote change, and one deleted on another
+device never produces a save here. Watching only saves would be the same mistake
+`@FetchRequest` exists to prevent — the index would quietly stop tracking
+anything that arrived over CloudKit. A sync arrives as a run of notifications
+rather than one, so they coalesce over 500 ms.
+
+Two things that would have failed silently: items **expire after a month** by
+default, so a trip nobody opened would fall out of Spotlight — which is exactly
+the group somebody would go looking for this way; and indexing is skipped under
+`-uitesting-reset`, since test fixtures reaching the device's real index would
+outlive the run that created them.
+
+The word sequence is indexed whole and never split. "green" would otherwise
+match every trip that happened to draw that word. It remains a label and not a
+credential — searching finds only groups the device already has.
+
+*Cost: zero bytes. `CoreSpotlight` ships with the OS. No model change.*
 
 ---
 
@@ -270,11 +324,6 @@ half a share on one row and fifty złoty on the next. It also breaks the one
 invariant everything else here relies on, that the parts reconstruct the whole:
 this needs a running remainder on screen at all times, and a decided answer for
 what happens when the fixed amounts overshoot the total.
-
-### 13. Spotlight indexing
-
-Groups and expenses searchable from the home screen via `CoreSpotlight`. System
-framework, small integration, and it makes a five-second app reachable in two.
 
 ---
 

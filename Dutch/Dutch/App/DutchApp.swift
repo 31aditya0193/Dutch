@@ -97,6 +97,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // CloudKit delivers sync notifications silently; without registering,
         // the app only picks up remote changes on the next launch.
         application.registerForRemoteNotifications()
+
+        // Starts publishing the groups to Spotlight and watching for changes.
+        // Here rather than in `DutchApp.init` because it needs a loaded store,
+        // and because this is already where launch-time registration lives.
+        MainActor.assumeIsolated {
+            SpotlightIndexer.shared.start(reading: PersistenceController.shared.viewContext)
+        }
+
         return true
     }
 
@@ -118,7 +126,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
 // MARK: - Scene Delegate
 
-/// Handles accepted CloudKit share invitations and Home Screen quick actions.
+/// Handles accepted CloudKit share invitations, Home Screen quick actions and
+/// tapped Spotlight results.
 ///
 /// This has to live on the *scene* delegate. The `UIApplicationDelegate`
 /// equivalent is never called in a scene-based app, which is a quiet way to end
@@ -147,17 +156,29 @@ final class SceneDelegate: NSObject, UIWindowSceneDelegate {
         completionHandler(true)
     }
 
-    /// A quick action tapped when the app wasn't running.
+    /// A Spotlight result tapped while the app was already running.
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        MainActor.assumeIsolated { SpotlightIndexer.handle(userActivity) }
+    }
+
+    /// A quick action or Spotlight result that launched the app.
     ///
-    /// Both paths are needed. The system delivers a cold-launch action here and
-    /// never calls the method above for it, so handling only that one gives a
-    /// quick action that works — until you actually quit the app.
+    /// Both paths are needed, for each of them. The system delivers a
+    /// cold-launch action here and never calls the matching method above for
+    /// it, so handling only those gives a quick action — or a search result —
+    /// that works until you actually quit the app.
     func scene(
         _ scene: UIScene,
         willConnectTo session: UISceneSession,
         options connectionOptions: UIScene.ConnectionOptions
     ) {
-        guard let item = connectionOptions.shortcutItem else { return }
-        MainActor.assumeIsolated { QuickAction.handle(item) }
+        MainActor.assumeIsolated {
+            if let item = connectionOptions.shortcutItem {
+                QuickAction.handle(item)
+            }
+            for activity in connectionOptions.userActivities {
+                SpotlightIndexer.handle(activity)
+            }
+        }
     }
 }
