@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public License,
+  v. 2.0. If a copy of the MPL was not distributed with this file, You can
+  obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dutch — Split bills with friends, without an account</title>
+  <meta name="description" content="A small, fast iPhone app for splitting shared expenses. Scan a QR code to join a group. No accounts, no servers — everything syncs through your own iCloud. Open source, MPL 2.0.">
+  <meta property="og:title" content="Dutch — Go Dutch with your friends">
+  <meta property="og:description" content="Split a dinner, a trip or a flat and always know who owes what. No account, no servers, under 2 MB.">
+  <meta property="og:image" content="https://dutch.smigi.net/assets/icon.png">
+  <meta property="og:url" content="https://dutch.smigi.net">
+  <meta name="theme-color" content="#629dff">
+  <link rel="icon" href="assets/icon.png" type="image/png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="logo" href="/">
+      <img src="assets/icon.png" alt="" width="34" height="34">
+      Dutch
+    </a>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="https://github.com/lakafior/Dutch">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="tag">iPhone · Open source</span>
+      <h1>Go Dutch with your friends.</h1>
+      <p class="lede">Split a dinner, a trip or a flat — and always know who owes what.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://apps.apple.com/app/id6795190862">Download on the App&nbsp;Store</a>
+        <a class="btn btn-secondary" href="https://github.com/lakafior/Dutch">View the source</a>
+      </div>
+    </div>
+    <div class="shot-frame">
+      <img class="shot" src="assets/shot-list.jpg" width="960" height="2086"
+           alt="The Dutch group list, showing eight groups with the balance owed or owed to you in each.">
+    </div>
+  </div>
+</section>
+
+<section id="how" class="alt">
+  <div class="wrap">
+    <div class="split">
+      <div class="shot-frame">
+        <img class="shot" src="assets/shot-share.jpg" width="960" height="2086"
+             alt="The share screen, showing a QR code and the group's word sequence.">
+      </div>
+      <div>
+        <h2>Everyone's in, in about a minute.</h2>
+        <p>
+          You're at the table, the bill has arrived, and nobody wants to install
+          an app and make an account before the coffee gets cold.
+        </p>
+        <p>
+          So Dutch doesn't have accounts. Show your group's QR code, everyone
+          scans it, and they're in — with the full app, on the free tier,
+          forever. Joining someone else's group is always free and always
+          unlimited.
+        </p>
+        <p>
+          Every group also gets a short word sequence like
+          <b>green-moon-tea</b>, so two people can check they've landed in the
+          same place.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>What it does</h2>
+      <p>Enough to settle a two-week trip for six people. Not much more than that.</p>
+    </div>
+    <div class="grid">
+      <div class="feature">
+        <h3>Who owes whom</h3>
+        <p>Not just a running total — the shortest list of payments that squares
+           everybody up. Mark one paid and the balances clear.</p>
+      </div>
+      <div class="feature">
+        <h3>Any currency</h3>
+        <p>Paid in yen on a trip priced in euros? Enter the rate you actually
+           got. It converts once, so the balance never drifts afterwards.</p>
+      </div>
+      <div class="feature">
+        <h3>Uneven splits</h3>
+        <p>Split a bill evenly, leave someone out, or give one person a double
+           share. Every remaining cent is distributed, never dropped.</p>
+      </div>
+      <div class="feature">
+        <h3>Live for everyone</h3>
+        <p>Add an expense and it appears on everybody's phone. Shared through
+           CloudKit, so there's no server in the middle to trust or pay for.</p>
+      </div>
+      <div class="feature">
+        <h3>Siri and Shortcuts</h3>
+        <p>"Add an expense to Berlin Trip." Ask Siri what you owe in a group, or
+           build the whole thing into a Shortcut of your own.</p>
+      </div>
+      <div class="feature">
+        <h3>Spotlight and quick actions</h3>
+        <p>Search your groups straight from the Home Screen, or long-press the
+           icon to add an expense to the one you were last in.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="split">
+      <div>
+        <h2>Small, and entirely yours.</h2>
+        <p>
+          Dutch has no backend. There is no server that holds your expenses, no
+          account to create, and no analytics of any kind. Your groups live in
+          <b>your</b> iCloud, and sharing a group is Apple's own CloudKit
+          sharing — the same mechanism as a shared photo album.
+        </p>
+        <p>
+          That isn't a policy that could change next quarter. There is nowhere
+          for the data to go, because the infrastructure to collect it was never
+          built.
+        </p>
+        <p><a href="/privacy/">Read the privacy policy →</a></p>
+      </div>
+      <ul class="facts">
+        <li><span>App size</span> <b>under 2 MB</b></li>
+        <li><span>Accounts</span> <b>none</b></li>
+        <li><span>Servers</span> <b>none</b></li>
+        <li><span>Trackers &amp; analytics</span> <b>none</b></li>
+        <li><span>Third-party dependencies</span> <b>none</b></li>
+        <li><span>Your data lives in</span> <b>your iCloud</b></li>
+        <li><span>Licence</span> <b>MPL 2.0</b></li>
+        <li><span>Requires</span> <b>iOS 17 or later</b></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="split">
+      <div>
+        <h2>Free for one group. $4.99 for as many as you like.</h2>
+        <p>
+          Everything in Dutch works on the free tier — every feature, no ads, no
+          trial. The one limit is that you can <em>create</em> one group at a
+          time. Groups you join don't count, so scanning a friend's code is
+          always free however many times you do it.
+        </p>
+        <p>
+          If you're the one starting the trips, a single purchase lifts the
+          limit for good. One payment, not a subscription, shared with your
+          Family Sharing group.
+        </p>
+        <p>
+          The source is open under MPL 2.0 — build it yourself and the limit
+          isn't there at all. What the App Store version buys you is not having
+          to.
+        </p>
+      </div>
+      <div class="shot-frame">
+        <img class="shot" src="assets/shot-detail.jpg" width="960" height="2086"
+             alt="A group's detail screen, showing total spent, each member's balance, and the settle-up list.">
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Marcin Śmigielski · Dutch is free software under the
+      <a href="https://github.com/lakafior/Dutch/blob/main/LICENSE">MPL 2.0</a></span>
+    <span>
+      <a href="https://github.com/lakafior/Dutch">GitHub</a> ·
+      <a href="/privacy/">Privacy</a> ·
+      <a href="https://github.com/lakafior/Dutch/issues">Support</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>
