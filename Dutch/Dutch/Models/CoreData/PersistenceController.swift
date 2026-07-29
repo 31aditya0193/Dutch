@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
 import CoreData
 import CloudKit
 import DutchKit
@@ -17,6 +21,14 @@ final class PersistenceController {
 
     /// Must match the iCloud container in `Dutch.entitlements`.
     static let cloudKitContainerIdentifier = "iCloud.app.dutch.Dutch"
+
+    /// The shared store's file on disk.
+    ///
+    /// Named here rather than inline at the one place it is created, because
+    /// `GroupLimit` identifies a joined group by which store it came from and
+    /// has no other way to tell the two apart. A typo would silently make every
+    /// group look like one the user created.
+    static let sharedStoreFilename = "Dutch-shared.sqlite"
 
     /// Must match the app group in `Dutch.entitlements`.
     ///
@@ -166,7 +178,7 @@ final class PersistenceController {
         guard let sharedDescription = privateDescription.copy() as? NSPersistentStoreDescription else {
             fatalError("Could not derive the shared store description.")
         }
-        sharedDescription.url = directory.appendingPathComponent("Dutch-shared.sqlite")
+        sharedDescription.url = directory.appendingPathComponent(Self.sharedStoreFilename)
 
         let sharedOptions = NSPersistentCloudKitContainerOptions(
             containerIdentifier: Self.cloudKitContainerIdentifier

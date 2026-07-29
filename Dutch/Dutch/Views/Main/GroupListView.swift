@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
 import CoreData
 import DutchKit
 import SwiftUI
@@ -30,11 +34,39 @@ struct GroupListView: View {
         return request
     }
 
+    /// Whether this device has bought its way past the free group limit.
+    ///
+    /// A singleton rather than a `@StateObject`, because the entitlement is a
+    /// fact about the Apple Account and not about this view — the paywall
+    /// observes the same instance, which is what lets buying from there unblock
+    /// the create that opened it.
+    @ObservedObject private var purchases = PurchaseStore.shared
+
     /// Path-based navigation so creating a group can push straight into it.
     @State private var path: [ExpenseGroup] = []
     @State private var showingNewGroup = false
     @State private var showingJoinGroup = false
     @State private var errorMessage: String?
+
+    /// Set with `reachedLimit` when a create was blocked, and without it when
+    /// the user opened the paywall themselves.
+    @State private var paywallReason: PaywallReason?
+
+    private enum PaywallReason: Identifiable {
+        case blocked
+        case browsing
+        var id: Self { self }
+    }
+
+    /// Set when the paywall interrupted a create, so that buying resumes it.
+    /// Survives the sheet's own state because `sheet(item:)` has cleared the
+    /// reason by the time `onDismiss` runs.
+    @State private var resumeCreateAfterPaywall = false
+
+    /// Set when a create was refused from inside `NewGroupSheet`, so the
+    /// paywall waits for that sheet to actually be gone.
+    @State private var blockedAfterSheet = false
+
     /// Held until the sheet has finished dismissing — pushing onto the path
     /// while a sheet is still on screen is a reliable way to have the push
     /// silently swallowed.
@@ -50,12 +82,31 @@ struct GroupListView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
-                ForEach(groups) { group in
-                    NavigationLink(value: group) {
-                        GroupRow(group: group)
+                Section {
+                    ForEach(groups) { group in
+                        NavigationLink(value: group) {
+                            GroupRow(group: group)
+                        }
+                    }
+                    .onDelete(perform: delete)
+                }
+
+                // The always-available way in. Without it the only route to
+                // "Restore Purchases" would be to first get blocked by the
+                // limit, which is a bad experience for someone whose purchase
+                // simply hasn't synced yet — and something App Review checks
+                // for. Disappears once the purchase is in.
+                if !purchases.hasUnlimitedGroups && !groups.isEmpty {
+                    Section {
+                        Button {
+                            paywallReason = .browsing
+                        } label: {
+                            Label("Dutch Unlimited", systemImage: "infinity")
+                        }
+                    } footer: {
+                        Text("One group is free. Unlock unlimited groups with a one-time purchase — joining other people's groups is always free.")
                     }
                 }
-                .onDelete(perform: delete)
             }
             .navigationDestination(for: ExpenseGroup.self) { group in
                 GroupDetailView(group: group)
@@ -70,7 +121,7 @@ struct GroupListView: View {
                         Text("Create a group to start splitting expenses, or join one with a QR code.")
                     } actions: {
                         // An empty state without a next action is a dead end.
-                        Button("Create a Group") { showingNewGroup = true }
+                        Button("Create a Group", action: requestNewGroup)
                             .buttonStyle(.borderedProminent)
                     }
                 }
@@ -85,9 +136,7 @@ struct GroupListView: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showingNewGroup = true
-                    } label: {
+                    Button(action: requestNewGroup) {
                         Label("New Group", systemImage: "plus")
                     }
                 }
@@ -98,6 +147,13 @@ struct GroupListView: View {
             .sheet(isPresented: $showingJoinGroup) {
                 JoinGroupView()
             }
+            .sheet(item: $paywallReason, onDismiss: resumeBlockedCreate) { reason in
+                PaywallView(reachedLimit: reason == .blocked)
+            }
+            // Loads the price and re-checks the entitlement. Here rather than
+            // in the paywall alone so a device that was offline at launch has
+            // both by the time anyone taps anything.
+            .task { await purchases.load() }
             .errorBanner($errorMessage)
             // Both, because an intent can arrive either way: on a cold launch
             // the destination is already set by the time this appears, and on a
@@ -109,11 +165,57 @@ struct GroupListView: View {
 
     // MARK: - Actions
 
+    /// Whether another group can be created, by the rule in `GroupLimit`.
+    private var canCreateGroup: Bool {
+        GroupLimit.canCreate(among: groups, unlocked: purchases.hasUnlimitedGroups)
+    }
+
+    /// The only way the new-group sheet opens.
+    ///
+    /// Both entry points go through here so the gate cannot be reached around,
+    /// and so the paywall replaces the sheet rather than appearing on top of it
+    /// — being asked for a name and *then* for money is a worse version of the
+    /// same refusal.
+    private func requestNewGroup() {
+        if canCreateGroup {
+            showingNewGroup = true
+        } else {
+            resumeCreateAfterPaywall = true
+            paywallReason = .blocked
+        }
+    }
+
+    /// Picks the interrupted create back up once the paywall closes.
+    ///
+    /// Only after a purchase, and only if the paywall was blocking something —
+    /// somebody who tapped "Not Now" asked for the list, not for the sheet they
+    /// were just refused. Nothing happens on the browsing path either.
+    private func resumeBlockedCreate() {
+        defer { resumeCreateAfterPaywall = false }
+        guard resumeCreateAfterPaywall, canCreateGroup else { return }
+        showingNewGroup = true
+    }
+
     private func createGroup(
         named name: String,
         currencyCode: String,
         appearance: GroupAppearance
     ) {
+        // Checked again on the way in, not just on the way to the sheet. The
+        // entitlement can change while the sheet is open — a refund, or a
+        // Family Sharing grant withdrawn — and this is the last point before a
+        // group actually exists.
+        //
+        // The paywall is deferred rather than presented here for the same
+        // reason `groupToOpen` is: this runs while `NewGroupSheet` is still on
+        // screen dismissing itself, and a sheet presented into that gets
+        // silently swallowed — which would read as a Create button that does
+        // nothing at all.
+        guard canCreateGroup else {
+            blockedAfterSheet = true
+            return
+        }
+
         do {
             groupToOpen = try store.createGroup(
                 named: name,
@@ -153,6 +255,13 @@ struct GroupListView: View {
     /// A new group is empty and useless until it has members, so drop the user
     /// into it rather than leaving them on a list to tap the row they just made.
     private func openPendingGroup() {
+        if blockedAfterSheet {
+            blockedAfterSheet = false
+            resumeCreateAfterPaywall = true
+            paywallReason = .blocked
+            return
+        }
+
         guard let group = groupToOpen else { return }
         groupToOpen = nil
         path = [group]
