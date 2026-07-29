@@ -13,10 +13,33 @@ cost approximately nothing. What would actually breach 3 MB is bundled fonts,
 image assets, an embedded rate database, or CoreML. None of the work below needs
 any of those. Watch the asset catalog, not the code.
 
+**The app is 1252 KB as of 2026-07-29**, down from 2164 KB, which makes the 3 MB
+ceiling a formality and 2 MB a comfortable one. Four changes did it, each
+measured by archiving rather than building:
+
+| | saving |
+|---|---|
+| `ASSETCATALOG_COMPILER_OPTIMIZATION = space` | 188 KB |
+| `SWIFT_OPTIMIZATION_LEVEL = -Osize` (app **and** DutchKit) | 64 KB |
+| `TARGETED_DEVICE_FAMILY = 1` | 432 KB |
+| the icon's ring gradient turned vertical | 244 KB |
+
+The last two were trades and were taken deliberately. iPhone-only does not make
+the app unavailable on iPad — it installs and runs in iPhone compatibility mode
+— it just stops the asset catalog storing a second copy of every icon rendition
+for the `pad` idiom, which was 539 KB of exact duplication. And the ring
+gradient is a visible departure from `icon.json`; see CLAUDE.md.
+
+What is left is 932 KB of binary and 212 KB of icon. The binary is the floor for
+6 000-odd lines of SwiftUI, and the remaining icon cost is three 1024×1024
+renditions that the App Store requires. There is no third act here — further
+work would be shaving kilobytes off a number nobody is measuring.
+
 **Raising the deployment target is not a size lever.** Measured 2026-07-29 by
 archiving twice against SDK 27.0, `minos` verified with `vtool`: iOS 17 gives a
 2128 KB bundle, iOS 26 gives 2112 KB, and `Assets.car` is byte-identical at
-1076 KB. Sixteen kilobytes, all of it back-deployment thunks in `__text`. Nor is
+1076 KB (both measured before the four changes above). Sixteen kilobytes, all of
+it back-deployment thunks in `__text`. Nor is
 it a speed lever — SwiftUI and Core Data ship with the OS and run the same code
 either way — and Liquid Glass is already active regardless, because adoption
 keys off the *linked SDK* rather than `minos`. Raise the floor only to reach a
