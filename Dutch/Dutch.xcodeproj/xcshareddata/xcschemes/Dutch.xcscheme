@@ -80,6 +80,12 @@
             ReferencedContainer = "container:Dutch.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = "-initialize-cloudkit-schema"
+            isEnabled = "NO">
+         </CommandLineArgument>
+      </CommandLineArguments>
       <StoreKitConfigurationFileReference
          identifier = "../Dutch.storekit">
       </StoreKitConfigurationFileReference>

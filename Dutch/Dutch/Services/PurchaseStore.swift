@@ -193,8 +193,59 @@ final class PurchaseStore: ObservableObject {
                 return .failed("That purchase couldn't be completed.")
             }
         } catch {
-            return .failed(error.localizedDescription)
+            return .failed(Self.message(for: error))
         }
+    }
+
+    /// Turns a StoreKit failure into something a person can act on.
+    ///
+    /// `error.localizedDescription` alone is what shipped first, and StoreKit's
+    /// own wording is written for developers: "Item Unavailable" tells a user
+    /// nothing about whether to wait, check their settings, or give up. It also
+    /// tells *us* nothing — several unrelated causes share it — so the raw
+    /// error is logged alongside, where Console.app can pick it up from a
+    /// TestFlight or sandbox build.
+    private static func message(for error: Error) -> String {
+        print("[Dutch] Purchase failed: \(type(of: error)).\(error) — \(error.localizedDescription)")
+
+        if let purchaseError = error as? Product.PurchaseError {
+            switch purchaseError {
+            case .productUnavailable:
+                return "This purchase isn't available on your App Store account yet. If the app was just updated, try again a little later."
+            case .purchaseNotAllowed:
+                return "Purchases are turned off on this device. Check Screen Time restrictions."
+            case .ineligibleForOffer:
+                return "This offer isn't available on your account."
+            case .invalidOfferIdentifier, .invalidOfferPrice, .invalidOfferSignature, .missingOfferParameters:
+                return "That purchase couldn't be set up. Please try again."
+            case .invalidQuantity:
+                return "That quantity isn't available."
+            default:
+                // Plain `default`, not `@unknown default`: StoreKit adds cases
+                // between SDK versions and this is a fallback message, not a
+                // decision — a build warning here would be noise.
+                return "That purchase couldn't be completed."
+            }
+        }
+
+        if let storeKitError = error as? StoreKitError {
+            switch storeKitError {
+            case .networkError:
+                return "The App Store couldn't be reached. Check your connection and try again."
+            case .notAvailableInStorefront:
+                return "This purchase isn't available in your country's App Store."
+            case .userCancelled:
+                return "Purchase cancelled."
+            case .notEntitled:
+                return "This device isn't allowed to make that purchase."
+            case .systemError, .unknown:
+                return "The App Store couldn't complete that right now. Please try again."
+            default:
+                return "That purchase couldn't be completed."
+            }
+        }
+
+        return error.localizedDescription
     }
 
     /// Re-syncs with the App Store and re-checks the entitlement.

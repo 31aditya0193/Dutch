@@ -134,7 +134,57 @@ final class PersistenceController {
             // nothing in the trace pointing back here.
             try? viewContext.setQueryGenerationFrom(.current)
         }
+
+        #if DEBUG
+        // Trimmed before comparing: Xcode's launch-argument field preserves
+        // whatever you typed, leading space included, and an exact match would
+        // then silently do nothing — which looks identical to the schema
+        // already being up to date.
+        let wantsSchemaInit = ProcessInfo.processInfo.arguments.contains {
+            $0.trimmingCharacters(in: .whitespaces) == "-initialize-cloudkit-schema"
+        }
+        if !inMemory, wantsSchemaInit {
+            initializeCloudKitSchema()
+        }
+        #endif
     }
+
+    #if DEBUG
+    /// Pushes the whole managed object model to the **Development** CloudKit
+    /// schema, then leaves it there to be promoted in the CloudKit Console.
+    ///
+    /// This exists because the container does not do it on its own. Fields are
+    /// created in Development *lazily*, as records carrying them actually sync,
+    /// so an attribute that no synced record has ever populated never reaches
+    /// the schema at all — and there is then nothing to promote to Production.
+    /// The failure shows up only in TestFlight or the App Store, which are the
+    /// only builds that run against Production:
+    ///
+    ///     "Cannot create or modify field 'CD_colorName' in record
+    ///      'CD_ExpenseGroup' in production schema"
+    ///
+    /// and it takes CloudKit mirroring down with it, so sharing stops working
+    /// too. A debug build is unaffected and will keep looking perfect.
+    ///
+    /// **Run this after every model version**, before promoting the schema:
+    ///
+    ///     1. Run in Xcode, signed in to iCloud, with the launch argument
+    ///        `-initialize-cloudkit-schema`.
+    ///     2. CloudKit Console → this container → Schema → Deploy Schema
+    ///        Changes → Production.
+    ///     3. Remove the launch argument.
+    ///
+    /// Debug-only and argument-gated on purpose. It writes schema, it is slow,
+    /// and Apple is explicit that it must never run in a shipping build.
+    private func initializeCloudKitSchema() {
+        do {
+            try container.initializeCloudKitSchema(options: [])
+            print("[Dutch] CloudKit development schema initialized. Now deploy it to Production in the CloudKit Console.")
+        } catch {
+            print("[Dutch] CloudKit schema initialization failed: \(error)")
+        }
+    }
+    #endif
 
     /// Where the two store files live.
     ///
