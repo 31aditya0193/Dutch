@@ -350,6 +350,63 @@ what happens when the fixed amounts overshoot the total.
 
 ---
 
+## Accessibility
+
+The App Store listing carries accessibility labels, and a label is a claim. These
+are the two Dutch cannot honestly make yet, audited 2026-07-29 against the 1.0
+submission.
+
+**Already true, and listed:** VoiceOver, Voice Control, Larger Text, Dark
+Interface, and Differentiate Without Colour. The last one is designed in rather
+than retrofitted — `Standing.caption` exists precisely so that owing and being
+owed never rest on red versus green, and every amount on every screen is paired
+with "you owe" or "you are owed". Larger Text holds because text uses semantic
+styles throughout and nothing caps `dynamicTypeSize`; the three
+`.font(.system(size:))` call sites are all `Image(systemName:)` glyphs, where a
+fixed size is correct.
+
+### 13. Reduce Motion
+
+**Not currently supported, and the one gap that is real work.** Nothing in the
+app reads `accessibilityReduceMotion`, and there are 22 animation sites that
+would need to honour it. The two that matter most are the ones a
+motion-sensitive person would notice immediately:
+
+- `.contentTransition(.numericText())` rolls every balance digit whenever a
+  figure changes — including changes the user didn't initiate, arriving from a
+  CloudKit sync while they are reading the screen;
+- the group list's `.spring(response: 0.35, dampingFraction: 0.8)`, chosen
+  deliberately over an ease so that a row arriving from someone else's phone
+  reads as an event rather than a glitch.
+
+Both are good defaults and both are exactly what the setting exists to turn off.
+The fix is to read the environment value and fall back to no animation and a
+plain text change — perhaps twenty lines across `GroupListView`, `GroupRow` and
+the detail screen. It is small; it simply hasn't been done.
+
+Worth knowing that the rolling digits are not only an accessibility problem: they
+are why an App Store screenshot captured a few seconds after launch caught ghost
+numerals mid-transition, and why the capture script waits ten seconds.
+
+*Cost: zero bytes. No model change.*
+
+### 14. Measure contrast, then claim it or fix it
+
+**Unverified, which is why it is unclaimed.** The balance figures use SwiftUI's
+semantic `.red` and `.green`. On white that is roughly 3.3:1 — under WCAG AA's
+4.5:1 for body text, but over the 3:1 that applies to large or bold text, and
+these are bold headline-sized numerals. So it probably passes, and "probably" is
+not good enough to put on a listing.
+
+This needs measuring with a contrast checker in both appearances, not arguing
+about. If it fails, the fix is a darker red and green for the amount text
+specifically — not a palette change, since `GroupColor` already excludes red and
+green precisely so a group's tint can never be confused with a balance.
+
+*Cost: zero bytes if it passes; a colour pair if it doesn't.*
+
+---
+
 ## Not planned
 
 These are the requests to expect, and the reasons they don't fit:
@@ -375,6 +432,15 @@ it's a screen nobody opens twice for a group with eleven expenses in it.
 - New logic goes in DutchKit if it can be tested without a simulator and without
   an iCloud account. Keep Core Data, SwiftUI and CloudKit types out of it.
 - New model attributes are optional, arrive in a new model version, and mean
-  promoting the CloudKit schema to production before shipping.
+  **initializing and then promoting** the CloudKit schema before shipping — in
+  that order. The container only creates fields in the Development schema as
+  records carrying them actually sync, so an attribute nothing has populated
+  never reaches the schema and the console reports "0 changes to deploy". Debug
+  builds keep working against Development while TestFlight and the App Store
+  fail against Production, which took out sharing entirely in 1.0. Run with
+  `-initialize-cloudkit-schema` first, then deploy.
+- Sync cannot be validated in a debug build. Development and Production are
+  different schemas, and only a distributed build exercises the one users get —
+  so a TestFlight sharing check belongs in every release.
 - Prefer a system framework over a hand-rolled equivalent, and no framework over
   either.
