@@ -17,6 +17,7 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "DutchKit"
                BuildableName = "DutchKit"
+               BlueprintName = "DutchKit"
                ReferencedContainer = "container:">
             </BuildableReference>
          </BuildActionEntry>
@@ -35,6 +36,7 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "DutchKitTests"
                BuildableName = "DutchKitTests"
+               BlueprintName = "DutchKitTests"
                ReferencedContainer = "container:">
             </BuildableReference>
          </TestableReference>
@@ -63,6 +65,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "DutchKit"
             BuildableName = "DutchKit"
+            BlueprintName = "DutchKit"
             ReferencedContainer = "container:">
          </BuildableReference>
       </MacroExpansion>
