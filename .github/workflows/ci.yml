@@ -1,0 +1,36 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+name: DutchKit tests
+
+# Only the pure-logic package is built here, and deliberately so. The app target
+# needs an Xcode newer than the hosted runners carry, plus a signing team and a
+# CloudKit container that a fork won't have — a job for it would be red for
+# everybody. DutchKit is Foundation-only, so this runs anywhere Swift does and
+# covers the money arithmetic, which is the part where a regression is silent.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Dutch/DutchKit/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+      - 'Dutch/DutchKit/**'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: swift test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Test
+        run: swift test --package-path Dutch/DutchKit

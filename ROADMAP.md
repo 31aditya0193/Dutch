@@ -28,7 +28,8 @@ The last two were trades and were taken deliberately. iPhone-only does not make
 the app unavailable on iPad — it installs and runs in iPhone compatibility mode
 — it just stops the asset catalog storing a second copy of every icon rendition
 for the `pad` idiom, which was 539 KB of exact duplication. And the ring
-gradient is a visible departure from `icon.json`; see CLAUDE.md.
+gradient is a visible departure from `icon.json`; the reasoning is in the
+comments in `Dutch/Design/RenderIcon.swift`.
 
 What is left is 932 KB of binary and 212 KB of icon. The binary is the floor for
 6 000-odd lines of SwiftUI, and the remaining icon cost is three 1024×1024
@@ -415,7 +416,8 @@ These are the requests to expect, and the reasons they don't fit:
 weight, storage, and an image pipeline in a codebase that currently rasterises
 exactly one QR code.
 
-**Live exchange rates.** Rates are frozen at entry deliberately (see CLAUDE.md);
+**Live exchange rates.** Rates are frozen at entry deliberately (see
+`DutchKit/Sources/DutchKit/ForeignAmount.swift`);
 that decision is what stops a shared trip's balances from drifting and reopening
 debts that were already settled. Fetching rates adds a network dependency, a
 cache, and a failure mode in order to reintroduce the problem.
