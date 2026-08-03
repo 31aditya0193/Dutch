@@ -218,11 +218,18 @@ struct ExpenseFormView: View {
         // amount.
         let slices = slicePreview
 
+        // The roster for the same reason, and it is mentioned more often than
+        // the slices are: twice in the payer picker, twice in the split section,
+        // and twice more in `allSelected` behind the Everyone button. Each of
+        // those was pulling the members out of a relationship set and sorting
+        // them again.
+        let roster = members
+
         NavigationStack {
             Form {
                 detailsSection
-                paidBySection
-                splitAmongSection(slices)
+                paidBySection(roster)
+                splitAmongSection(slices, roster)
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(navigationTitle)
@@ -364,7 +371,7 @@ struct ExpenseFormView: View {
         }
     }
 
-    private var paidBySection: some View {
+    private func paidBySection(_ members: [Person]) -> some View {
         Section("Paid By") {
             if members.isEmpty {
                 Text("Add members first.")
@@ -380,7 +387,7 @@ struct ExpenseFormView: View {
         }
     }
 
-    private func splitAmongSection(_ slices: [Person: Money]) -> some View {
+    private func splitAmongSection(_ slices: [Person: Money], _ members: [Person]) -> some View {
         Section {
             if members.isEmpty {
                 Text("Add members first.")
@@ -410,9 +417,10 @@ struct ExpenseFormView: View {
                 if !members.isEmpty {
                     // Splitting evenly across everyone is the common case, and
                     // it used to cost one tap per member.
-                    Button(allSelected ? "None" : "Everyone") {
+                    let everyone = allSelected(in: members)
+                    Button(everyone ? "None" : "Everyone") {
                         withAnimation(.snappy) {
-                            selectedParticipants = allSelected ? [] : Set(members)
+                            selectedParticipants = everyone ? [] : Set(members)
                         }
                     }
                     .font(.caption.weight(.semibold))
@@ -437,7 +445,7 @@ struct ExpenseFormView: View {
 
     // MARK: - Selection
 
-    private var allSelected: Bool {
+    private func allSelected(in members: [Person]) -> Bool {
         !members.isEmpty && selectedParticipants.count == members.count
     }
 
@@ -725,7 +733,7 @@ private struct MemberSplitRow: View {
 
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                         .imageScale(.large)
                         .contentTransition(.symbolEffect(.replace))
                 }
@@ -757,7 +765,7 @@ private struct MemberSplitRow: View {
                 } label: {
                     Text("\(share)%")
                         .font(.callout.monospacedDigit())
-                        .foregroundStyle(share == Share.full ? Color.secondary : Color.accentColor)
+                        .foregroundStyle(share == Share.full ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
                         .contentTransition(.numericText())
                         // Padding, not a frame: the tappable area has to clear
                         // 44pt without the text jumping around as it goes from

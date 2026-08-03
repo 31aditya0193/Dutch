@@ -29,6 +29,19 @@ enum ExpenseDefaults {
     /// than reporting the group's total, which is the whole point of it.
     private static let store = PersistenceController.appGroupDefaults
 
+    /// Posted when `me(in:among:)` would answer differently than it just did.
+    ///
+    /// Views that show identity need to hear about it, and `UserDefaults` is not
+    /// observable. The obvious substitute — `UserDefaults.didChangeNotification`
+    /// — is a firehose: it carries every write to the suite, and `CloudSyncMonitor`
+    /// stamps `lastSync` into this very suite on every successful import. Rows
+    /// listening on it therefore re-resolved identity once per sync, forever,
+    /// for a value that had not moved. Filtering by `object:` would not have
+    /// helped, because that is the same suite.
+    ///
+    /// This says the one thing the listeners actually asked about.
+    static let identityDidChange = Notification.Name("ExpenseDefaults.identityDidChange")
+
     /// The key prefixes, in one place, because `forget(_:)` has to be able to
     /// clear everything this type writes.
     private enum Namespace: String, CaseIterable {
@@ -151,6 +164,8 @@ enum ExpenseDefaults {
     static func rememberMe(_ person: Person?, in group: ExpenseGroup) {
         guard let key = identityKey(for: group) else { return }
 
+        defer { NotificationCenter.default.post(name: identityDidChange, object: nil) }
+
         guard let id = person?.id else {
             store.removeObject(forKey: key)
             return
@@ -199,5 +214,11 @@ enum ExpenseDefaults {
         if lastOpenedGroupID == id {
             store.removeObject(forKey: lastOpenedGroupKey)
         }
+
+        // The row for this group is on its way out, so nothing on screen is
+        // waiting for this. Posted anyway, because "identity may have changed"
+        // is true and a listener that has to know *which* group was forgotten
+        // to decide whether to care is a listener coupled to this method.
+        NotificationCenter.default.post(name: identityDidChange, object: nil)
     }
 }

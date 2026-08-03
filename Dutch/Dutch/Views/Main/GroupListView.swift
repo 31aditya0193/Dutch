@@ -363,7 +363,13 @@ private struct GroupRow: View {
         // re-run `onAppear` on a row that never left the screen, so without
         // this the row would keep showing the group total until something else
         // redrew it.
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+        //
+        // Specifically `identityDidChange` and not `UserDefaults`'s own
+        // notification: that one also carries `CloudSyncMonitor`'s `lastSync`
+        // stamp, written to this same suite on every import, which had every
+        // row on screen re-resolving identity once per sync to reach the answer
+        // it already had.
+        .onReceive(NotificationCenter.default.publisher(for: ExpenseDefaults.identityDidChange)) { _ in
             resolveIdentity()
         }
         .onChange(of: members.count) { resolveIdentity() }

@@ -144,7 +144,12 @@ struct GroupDetailView: View {
         // identity whose member was deleted — here or on another device —
         // quietly falls back to third person instead of pointing at nothing.
         .onAppear {
-            me = ExpenseDefaults.me(in: group, among: contents.members)
+            // Compared before assigning, because `@State` invalidates on any
+            // write and not only on a change of value — and this runs on every
+            // return from the expense form, where the answer is the same one it
+            // was when the sheet went up.
+            let resolved = ExpenseDefaults.me(in: group, among: contents.members)
+            if resolved != me { me = resolved }
             // What makes "add an expense" mean something without a group being
             // named — from the Action button, the Home Screen icon, or Siri.
             // Recorded on arrival rather than on any edit, because the question
@@ -633,8 +638,8 @@ private struct MemberBalanceRow: View {
                     .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.15), in: Capsule())
-                    .foregroundStyle(Color.accentColor)
+                    .background(.tint.opacity(0.15), in: Capsule())
+                    .foregroundStyle(.tint)
                     .accessibilityHidden(true)  // carried by the label below
             }
 
