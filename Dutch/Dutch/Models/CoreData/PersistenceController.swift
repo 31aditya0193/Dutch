@@ -45,6 +45,17 @@ final class PersistenceController {
     /// container is.
     static let appGroupIdentifier = "group.net.smigi.Dutch"
 
+    /// Device-local state that a second process has to be able to read, for the
+    /// same reason the stores moved into the app group: an extension has its
+    /// own `.standard` and would see none of it.
+    ///
+    /// Falls back to `.standard` if the group is unavailable, so an
+    /// unprovisioned entitlement costs a widget its data rather than costing
+    /// the user their prefills. Named here rather than in each caller so the
+    /// fallback exists once — two copies of it would be two things to keep in
+    /// agreement, and disagreeing quietly is the whole failure mode.
+    static let appGroupDefaults = UserDefaults(suiteName: appGroupIdentifier) ?? .standard
+
     /// Loaded exactly once and shared by every container.
     ///
     /// Letting each container load its own copy produces duplicate

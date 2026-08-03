@@ -27,13 +27,7 @@ enum ExpenseDefaults {
     /// widget on the roadmap — has its own `.standard` and would see none of
     /// this. Identity in particular is what lets a widget say "you owe" rather
     /// than reporting the group's total, which is the whole point of it.
-    ///
-    /// Falls back to `.standard` if the group is unavailable, so an
-    /// unprovisioned entitlement costs a widget its data rather than costing
-    /// the user their prefills.
-    private static let store = UserDefaults(
-        suiteName: PersistenceController.appGroupIdentifier
-    ) ?? .standard
+    private static let store = PersistenceController.appGroupDefaults
 
     /// The key prefixes, in one place, because `forget(_:)` has to be able to
     /// clear everything this type writes.

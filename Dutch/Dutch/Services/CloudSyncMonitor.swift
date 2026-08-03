@@ -37,11 +37,21 @@ final class CloudSyncMonitor: ObservableObject {
 
     /// When an import last finished successfully.
     ///
-    /// Deliberately not persisted. Mirroring runs a setup and an import as the
-    /// stores load, so a cold launch fills this in within seconds on its own —
-    /// and a remembered timestamp from a previous launch would be a claim about
-    /// a session this one knows nothing about.
-    @Published private(set) var lastSync: Date?
+    /// Persisted, because the question it answers — when did data last come
+    /// down from iCloud — is about the device and not about this launch. Left
+    /// in memory it would read "Waiting for iCloud" for the first seconds of
+    /// every cold launch, which is the moment somebody opening the app after a
+    /// weekend away is most likely to be looking, and is indistinguishable on
+    /// screen from sync being broken.
+    ///
+    /// In the app group suite rather than `.standard` so the widget on the
+    /// roadmap can say the same thing without a stack of its own.
+    @Published private(set) var lastSync: Date? {
+        didSet {
+            guard isEnabled, lastSync != oldValue else { return }
+            defaults.set(lastSync, forKey: Self.lastSyncKey)
+        }
+    }
 
     /// The most recent failure, in words somebody can act on, or `nil` while
     /// everything is working.
@@ -63,7 +73,10 @@ final class CloudSyncMonitor: ObservableObject {
     /// stalled one still ends the pull.
     private static let settleTimeout = Duration.seconds(12)
 
+    private static let lastSyncKey = "cloudSync.lastImport"
+
     private let controller: PersistenceController
+    private let defaults: UserDefaults
     private var observer: NSObjectProtocol?
 
     /// Identifiers of events that have started and not yet ended.
@@ -74,11 +87,21 @@ final class CloudSyncMonitor: ObservableObject {
     /// — a full iCloud account can read fine and refuse every write.
     private var problems: [NSPersistentCloudKitContainer.EventType: String] = [:]
 
-    init(controller: PersistenceController) {
+    init(
+        controller: PersistenceController,
+        defaults: UserDefaults = PersistenceController.appGroupDefaults
+    ) {
         self.controller = controller
+        self.defaults = defaults
         self.isEnabled = controller.isCloudSyncEnabled
 
         guard isEnabled else { return }
+
+        // Read straight through, past the `didSet`, which would otherwise write
+        // back what it just read on every launch.
+        _lastSync = Published(
+            initialValue: defaults.object(forKey: Self.lastSyncKey) as? Date
+        )
 
         // Delivered on the main queue so the published properties are written
         // where they are read. The event carries its own start and end, so this
