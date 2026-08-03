@@ -71,6 +71,12 @@ struct GroupDetailView: View {
             settleUpSection(contents)
             expensesSection(contents)
         }
+        // Here as well as on the group list, because this is the screen someone
+        // stares at waiting for an expense their friend just added. No status
+        // line to go with it: the list is where "is everything here?" is asked,
+        // and this screen is already dense. See `CloudSyncMonitor` for what the
+        // pull actually does.
+        .refreshable { await CloudSyncMonitor.shared.refresh() }
         .navigationTitle(group.name ?? "Group")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {

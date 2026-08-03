@@ -42,6 +42,12 @@ struct GroupListView: View {
     /// the create that opened it.
     @ObservedObject private var purchases = PurchaseStore.shared
 
+    /// Drives the pull-to-refresh gesture and the status line under the list.
+    /// A singleton for the same reason `purchases` is: it describes the account
+    /// and the container, not this screen, and the detail screen pulls on the
+    /// same one.
+    @ObservedObject private var sync = CloudSyncMonitor.shared
+
     /// Path-based navigation so creating a group can push straight into it.
     @State private var path: [ExpenseGroup] = []
     @State private var showingNewGroup = false
@@ -107,7 +113,20 @@ struct GroupListView: View {
                         Text("One group is free. Unlock unlimited groups with a one-time purchase — joining other people's groups is always free.")
                     }
                 }
+
+                // An empty section, so the status is the last thing in the list
+                // rather than an attachment to whichever section happens to be
+                // above it — the purchase section comes and goes.
+                Section {
+                } footer: {
+                    SyncStatusFooter()
+                }
             }
+            // The gesture this app is expected to have, given that everything
+            // in it arrives from somebody else's phone. It cannot make CloudKit
+            // fetch — no API can — so read `CloudSyncMonitor` before assuming
+            // more of it than it does.
+            .refreshable { await sync.refresh() }
             .navigationDestination(for: ExpenseGroup.self) { group in
                 GroupDetailView(group: group)
             }

@@ -76,6 +76,14 @@ final class PersistenceController {
     /// The store holding groups this user owns.
     private(set) var privateStore: NSPersistentStore?
 
+    /// Whether the stores actually mirror to CloudKit.
+    ///
+    /// False for the in-memory stack used by tests, previews and UI tests,
+    /// where no mirroring event will ever arrive. `CloudSyncMonitor` reads this
+    /// so the sync status line stays off there rather than sitting on screen
+    /// permanently claiming iCloud never answered.
+    let isCloudSyncEnabled: Bool
+
     // MARK: - Init
 
     private init(inMemory: Bool = false) {
@@ -83,6 +91,7 @@ final class PersistenceController {
         // inherit state from a previous run nor depend on an iCloud account.
         let inMemory = inMemory
             || ProcessInfo.processInfo.arguments.contains("-uitesting-reset")
+        isCloudSyncEnabled = !inMemory
 
         container = NSPersistentCloudKitContainer(
             name: "Dutch",
