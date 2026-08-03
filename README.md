@@ -253,6 +253,10 @@ CloudKit container and push entitlements. The tests run against an in-memory
 store with mirroring switched off, so they exercise the data model and the
 settlement maths rather than CloudKit.
 
+> **Publishing a fork?** Change the display name, bundle identifier, app group,
+> iCloud container and app icon first — the Dutch name and icon aren't covered by
+> the code licence. See [TRADEMARK.md](TRADEMARK.md).
+
 ---
 
 ## 🤝 Contributing
@@ -267,11 +271,13 @@ what the app deliberately leaves out and why.
 Dutch is free software under the **Mozilla Public License 2.0**. See
 [LICENSE](LICENSE).
 
-### Trademark
+You are free to use, modify and distribute it, including commercially.
+Modifications to existing MPL-licensed files must be released under the same
+licence; you may combine this code with proprietary code in separate files as
+part of a larger work.
 
-The MPL 2.0 covers the source code. It does not grant rights in the name
-"Dutch", the app icon, or the `dutch.smigi.net` branding — MPL 2.0 §2.3 excludes
-trademarks, service marks and logos from the licence grant.
-
-Forks are welcome, and building your own copy is the whole point of the source
-being here. Please ship them under **your own name and icon**.
+The **name "Dutch" as this app's name, and the app icon**, are not part of that
+grant — MPL-2.0 §2.3 grants no trademark or logo rights. Fork freely and ship
+what you build, but ship it under your own name and your own icon. See
+[TRADEMARK.md](TRADEMARK.md) for the details, and email `dutch@smigi.net` if you
+want to use the brand for something.
