@@ -266,3 +266,12 @@ what the app deliberately leaves out and why.
 
 Dutch is free software under the **Mozilla Public License 2.0**. See
 [LICENSE](LICENSE).
+
+### Trademark
+
+The MPL 2.0 covers the source code. It does not grant rights in the name
+"Dutch", the app icon, or the `dutch.smigi.net` branding — MPL 2.0 §2.3 excludes
+trademarks, service marks and logos from the licence grant.
+
+Forks are welcome, and building your own copy is the whole point of the source
+being here. Please ship them under **your own name and icon**.
