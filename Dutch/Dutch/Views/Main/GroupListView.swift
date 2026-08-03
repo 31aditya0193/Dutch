@@ -113,14 +113,6 @@ struct GroupListView: View {
                         Text("One group is free. Unlock unlimited groups with a one-time purchase — joining other people's groups is always free.")
                     }
                 }
-
-                // An empty section, so the status is the last thing in the list
-                // rather than an attachment to whichever section happens to be
-                // above it — the purchase section comes and goes.
-                Section {
-                } footer: {
-                    SyncStatusFooter()
-                }
             }
             // The gesture this app is expected to have, given that everything
             // in it arrives from somebody else's phone. It cannot make CloudKit
@@ -153,6 +145,14 @@ struct GroupListView: View {
                     } label: {
                         Label("Join a Group", systemImage: "qrcode.viewfinder")
                     }
+                }
+                // Leading, so it sits toward the title rather than crowding the
+                // primary action — and second in the group, so the action a
+                // person came to tap is still the one at the edge. It cannot go
+                // beside the large title itself: a `.principal` item replaces
+                // the title and forces inline mode.
+                ToolbarItem(placement: .topBarLeading) {
+                    SyncStatusIndicator()
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: requestNewGroup) {

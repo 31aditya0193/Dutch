@@ -27,7 +27,7 @@ import Foundation
 ///   sharing and said nothing about it. That is the real bug this fixes.
 ///
 /// Anything claiming otherwise would be a lie told by the UI, so the copy in
-/// `SyncStatusFooter` says "synced", never "up to date".
+/// `SyncStatusIndicator` says "synced", never "up to date".
 @MainActor
 final class CloudSyncMonitor: ObservableObject {
     static let shared = CloudSyncMonitor(controller: .shared)
