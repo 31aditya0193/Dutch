@@ -48,6 +48,13 @@ struct GroupDetailView: View {
     /// otherwise not move until something else redrew the screen.
     @State private var me: Person?
 
+    /// People on the share who aren't linked to a member yet.
+    ///
+    /// `@State` rather than computed in the body: it reads the cached `CKShare`,
+    /// which is not a fetched object and so cannot drive a redraw on its own,
+    /// and the body runs far too often to pay for that lookup each time.
+    @State private var unclaimedJoiners: [String] = []
+
     private var store: GroupStore { GroupStore(context: context) }
 
     /// Consulted for a pending `.newExpense`, which `GroupListView` pushes this
@@ -76,7 +83,13 @@ struct GroupDetailView: View {
         // line to go with it: the list is where "is everything here?" is asked,
         // and this screen is already dense. See `CloudSyncMonitor` for what the
         // pull actually does.
-        .refreshable { await CloudSyncMonitor.shared.refresh() }
+        // Re-read after the sync, not before: somebody accepting the invitation
+        // arrives as an import, and the pull is the gesture people use when they
+        // are waiting for exactly that.
+        .refreshable {
+            await CloudSyncMonitor.shared.refresh()
+            unclaimedJoiners = CloudIdentity.unclaimedJoiners(in: group)
+        }
         .navigationTitle(group.name ?? "Group")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -156,6 +169,7 @@ struct GroupDetailView: View {
             // it answers is "which trip am I on", and opening a group is the
             // whole of the evidence for that.
             ExpenseDefaults.rememberOpened(group)
+            unclaimedJoiners = CloudIdentity.unclaimedJoiners(in: group)
             openPendingExpense()
         }
         .onChange(of: router.destination) { openPendingExpense() }
@@ -266,7 +280,7 @@ struct GroupDetailView: View {
                     MemberBalanceRow(
                         name: member.name ?? "Unnamed",
                         avatar: contents.avatars[member],
-                        isLinked: CloudIdentity.isSomeoneElse(member),
+                        isLinked: member.cloudUserRecordName != nil,
                         balance: member.id.flatMap { contents.balances[$0] },
                         currencyCode: group.currency,
                         isMe: member == me
@@ -310,10 +324,18 @@ struct GroupDetailView: View {
         } header: {
             Text("Members")
         } footer: {
-            // Shown only until it has been answered — a hint that stays on
-            // screen after you've acted on it is just clutter.
-            if me == nil, !contents.members.isEmpty {
-                Text("Touch and hold your own name to have Dutch address you directly.")
+            VStack(alignment: .leading, spacing: 8) {
+                // Shown only until it has been answered — a hint that stays on
+                // screen after you've acted on it is just clutter.
+                if me == nil, !contents.members.isEmpty {
+                    Text("Touch and hold your own name to have Dutch address you directly.")
+                }
+
+                // The roster looks complete whether or not it is, so the only
+                // sign that somebody joined and never picked a name is this.
+                if !unclaimedJoiners.isEmpty {
+                    Text(unclaimedJoinersMessage)
+                }
             }
         }
     }
@@ -539,6 +561,17 @@ struct GroupDetailView: View {
     private func count(_ value: Int, _ singular: String, _ plural: String) -> String {
         "\(value) \(value == 1 ? singular : plural)"
     }
+
+    /// "Ala and Bartek have joined but haven't picked a name yet."
+    ///
+    /// They/their throughout: CloudKit hands over a name, never a pronoun, and
+    /// guessing one from a name gets it wrong for real people.
+    private var unclaimedJoinersMessage: String {
+        let names = unclaimedJoiners.formatted(.list(type: .and))
+        return unclaimedJoiners.count == 1
+            ? "\(names) has joined but hasn't picked their name from this list yet."
+            : "\(names) have joined but haven't picked their names from this list yet."
+    }
 }
 
 // MARK: - Form Target
@@ -647,9 +680,15 @@ private struct SharedSummary: Transferable {
 private struct MemberBalanceRow: View {
     let name: String
     let avatar: PersonAvatar
-    /// Whether this member has been claimed by an iCloud account other than
-    /// this device's — which is to say, they are here on a phone of their own
-    /// rather than being a name somebody typed in on everyone's behalf.
+    /// Whether this member has been claimed by an iCloud account at all —
+    /// yours included. They are a person on a phone of their own rather than a
+    /// name somebody typed in on everyone's behalf.
+    ///
+    /// Deliberately not "somebody *else's* account". Showing it only for other
+    /// people made the whole feature invisible to anyone testing with one
+    /// device: the only row you can claim is your own, and your own row was
+    /// already badged "You", so claiming it changed nothing on screen and there
+    /// was no way to tell the link had been written.
     let isLinked: Bool
     let balance: Money?
     let currencyCode: String
@@ -660,8 +699,12 @@ private struct MemberBalanceRow: View {
     private var standing: Standing { Standing(balance: balance) }
 
     private var accessibleName: String {
-        if isMe { return "\(name), you" }
-        return isLinked ? "\(name), joined on iCloud" : name
+        switch (isMe, isLinked) {
+        case (true, true): "\(name), you, linked to iCloud"
+        case (true, false): "\(name), you"
+        case (false, true): "\(name), joined on iCloud"
+        case (false, false): name
+        }
     }
 
     var body: some View {
@@ -685,12 +728,14 @@ private struct MemberBalanceRow: View {
                         .background(.tint.opacity(0.15), in: Capsule())
                         .foregroundStyle(.tint)
                         .accessibilityHidden(true)  // carried by the label below
-                } else if isLinked {
-                    // A glyph rather than a second capsule. "You" is worth a
-                    // badge because it changes how the whole row reads; this
-                    // only says the row has a person behind it, and a row of
-                    // capsules would make the one that matters stop standing
-                    // out.
+                }
+
+                // Alongside the "You" capsule rather than instead of it, so
+                // claiming your own row visibly does something. A glyph and not
+                // a second capsule: "You" changes how the whole row reads,
+                // where this only says the row has an account behind it, and
+                // two capsules would stop the one that matters standing out.
+                if isLinked {
                     Image(systemName: "checkmark.icloud")
                         .font(.caption2)
                         .foregroundStyle(.secondary)

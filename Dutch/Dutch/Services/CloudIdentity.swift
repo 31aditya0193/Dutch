@@ -85,4 +85,70 @@ enum CloudIdentity {
         guard let linked = person.cloudUserRecordName else { return false }
         return linked != current
     }
+
+    // MARK: - Who has joined
+
+    /// People who have accepted the group's invitation but are not linked to any
+    /// member yet.
+    ///
+    /// This is the half that claiming alone cannot show. A person who scanned
+    /// the QR code and never opened the roster is, on everyone else's screen,
+    /// indistinguishable from a name somebody typed in — so the group looks
+    /// complete while somebody is missing from it, and the first sign of trouble
+    /// is a balance nobody recognises.
+    ///
+    /// Named rather than merely counted, because "somebody has joined" is not
+    /// something the owner can act on and "Bartek has joined" is: they know to
+    /// tell Bartek to pick his name.
+    ///
+    /// Reads the locally cached share, so it costs no network and returns an
+    /// empty list for a group that was never shared.
+    @MainActor
+    static func unclaimedJoiners(in group: ExpenseGroup) -> [String] {
+        guard let share = try? CloudSharingService.existingShare(for: group) else { return [] }
+
+        let joined = share.participants
+            // Everyone invited, minus the ones who haven't said yes: a pending
+            // invitation is not somebody missing from the roster, it is somebody
+            // who has not arrived.
+            .filter { $0.acceptanceStatus == .accepted }
+            .compactMap { participant -> (id: String, name: String)? in
+                guard let id = participant.userIdentity.userRecordID?.recordName else { return nil }
+                return (id, displayName(for: participant.userIdentity))
+            }
+
+        let members = (group.members as? Set<Person>).map(Array.init) ?? []
+        let unmatched = Set(unmatchedRecordNames(joined.map(\.id), against: members))
+
+        return joined.filter { unmatched.contains($0.id) }.map(\.name)
+    }
+
+    /// Which of `joined` belongs to nobody on the roster.
+    ///
+    /// Split out from the CloudKit call so it can be tested with plain strings —
+    /// `CKShare.Participant` has no public initialiser, so the alternative is
+    /// not testing this at all.
+    ///
+    /// The current user is dropped whether or not they have claimed anyone.
+    /// Telling somebody that *they* have joined but not picked a name is both
+    /// obvious and already said, better, by the hint under the member list.
+    static func unmatchedRecordNames(_ joined: [String], against members: [Person]) -> [String] {
+        let claimed = Set(members.compactMap(\.cloudUserRecordName))
+        return joined.filter { $0 != current && !claimed.contains($0) }
+    }
+
+    /// What to call a participant.
+    ///
+    /// CloudKit gives a name only when the account is discoverable, so the
+    /// fallbacks matter: the invitation was sent to an address or a number, and
+    /// either names the person better than "Someone" does.
+    private static func displayName(for identity: CKUserIdentity) -> String {
+        if let components = identity.nameComponents {
+            let name = PersonNameComponentsFormatter.localizedString(from: components, style: .default)
+            if !name.isEmpty { return name }
+        }
+        return identity.lookupInfo?.emailAddress
+            ?? identity.lookupInfo?.phoneNumber
+            ?? String(localized: "Someone")
+    }
 }

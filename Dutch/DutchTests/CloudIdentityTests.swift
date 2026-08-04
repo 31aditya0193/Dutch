@@ -222,6 +222,69 @@ struct CloudIdentityTests {
         }
     }
 
+    // MARK: - Unmatched joiners
+
+    @Test("Somebody who joined and claimed nobody is unmatched")
+    func joinerWithoutAClaimIsUnmatched() throws {
+        let context = TestStack.makeContext()
+        let (_, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
+
+        try Self.withIdentity("_mine") {
+            #expect(CloudIdentity.unmatchedRecordNames(["_theirs"], against: members) == ["_theirs"])
+        }
+    }
+
+    @Test("Somebody who has claimed a member is matched")
+    func joinerWithAClaimIsMatched() throws {
+        let context = TestStack.makeContext()
+        let (_, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
+        members[1].cloudUserRecordName = "_theirs"
+
+        try Self.withIdentity("_mine") {
+            #expect(CloudIdentity.unmatchedRecordNames(["_theirs"], against: members).isEmpty)
+        }
+    }
+
+    /// Reporting yourself as a stranger who wandered in would be absurd, and the
+    /// hint under the member list already covers "you haven't picked a name".
+    @Test("The current user is never reported as unmatched", arguments: [true, false])
+    func currentUserIsNeverUnmatched(hasClaimed: Bool) throws {
+        let context = TestStack.makeContext()
+        let (_, members) = try Self.makeGroup(members: ["Ala"], in: context)
+        if hasClaimed { members[0].cloudUserRecordName = "_mine" }
+
+        try Self.withIdentity("_mine") {
+            #expect(CloudIdentity.unmatchedRecordNames(["_mine"], against: members).isEmpty)
+        }
+    }
+
+    @Test("Several joiners are reported in the order they arrived")
+    func severalJoinersKeepTheirOrder() throws {
+        let context = TestStack.makeContext()
+        let (_, members) = try Self.makeGroup(members: ["Ala", "Bartek", "Celina"], in: context)
+        members[0].cloudUserRecordName = "_one"
+
+        try Self.withIdentity("_mine") {
+            let unmatched = CloudIdentity.unmatchedRecordNames(
+                ["_one", "_two", "_mine", "_three"],
+                against: members
+            )
+            #expect(unmatched == ["_two", "_three"])
+        }
+    }
+
+    /// A group nobody has joined has nobody to report, which is also every group
+    /// that was never shared.
+    @Test("No joiners means nothing to report")
+    func noJoinersIsEmpty() throws {
+        let context = TestStack.makeContext()
+        let (_, members) = try Self.makeGroup(members: ["Ala"], in: context)
+
+        try Self.withIdentity("_mine") {
+            #expect(CloudIdentity.unmatchedRecordNames([], against: members).isEmpty)
+        }
+    }
+
     /// Signed out, there is nothing to write. It must be a no-op rather than
     /// clearing whatever was already there.
     @Test("Claiming while signed out changes nothing")
