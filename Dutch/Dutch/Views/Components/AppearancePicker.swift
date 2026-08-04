@@ -33,7 +33,7 @@ struct AppearancePicker: View {
         // every phone at ordinary type sizes, and a row that scrolls hides
         // choices behind a gesture nobody knows is there.
         LazyVGrid(columns: [GridItem(.adaptive(minimum: target), spacing: 4)], spacing: 4) {
-            ForEach(GroupColor.allCases) { color in
+            ForEach(PaletteColor.allCases) { color in
                 Button {
                     appearance.color = color
                 } label: {

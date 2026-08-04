@@ -225,11 +225,16 @@ struct ExpenseFormView: View {
         // them again.
         let roster = members
 
+        // Resolved over the whole roster, so a member's colour here is the one
+        // the group screen gave them — an avatar that changed between the two
+        // screens would be worse than no avatar at all.
+        let avatars = RosterAvatars(roster)
+
         NavigationStack {
             Form {
                 detailsSection
                 paidBySection(roster)
-                splitAmongSection(slices, roster)
+                splitAmongSection(slices, roster, avatars)
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(navigationTitle)
@@ -387,7 +392,11 @@ struct ExpenseFormView: View {
         }
     }
 
-    private func splitAmongSection(_ slices: [Person: Money], _ members: [Person]) -> some View {
+    private func splitAmongSection(
+        _ slices: [Person: Money],
+        _ members: [Person],
+        _ avatars: RosterAvatars
+    ) -> some View {
         Section {
             if members.isEmpty {
                 Text("Add members first.")
@@ -396,6 +405,7 @@ struct ExpenseFormView: View {
                 ForEach(members, id: \.objectID) { member in
                     MemberSplitRow(
                         name: member.name ?? "?",
+                        avatar: avatars[member],
                         isSelected: selectedParticipants.contains(member),
                         share: splitsEvenly ? nil : share(for: member),
                         slice: slices[member].map { $0.formatted(in: group) },
@@ -695,6 +705,7 @@ struct ExpenseFormView: View {
 /// Extracted so the `Form` body stays small enough for the type checker.
 private struct MemberSplitRow: View {
     let name: String
+    let avatar: PersonAvatar
     let isSelected: Bool
     /// The member's percentage of a full share, or `nil` when the split is even
     /// and no control should appear at all.
@@ -713,7 +724,14 @@ private struct MemberSplitRow: View {
             // used to show nothing at all, so there was no cue the row was
             // tappable.
             Button(action: onTap) {
-                HStack {
+                HStack(spacing: 12) {
+                    // Dimmed rather than hidden when the member is out of the
+                    // split: the row still has to be identifiable at a glance,
+                    // and a circle that vanishes makes the list jump as people
+                    // are toggled in and out.
+                    PersonIcon(avatar)
+                        .opacity(isSelected ? 1 : 0.4)
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text(name)
                             .foregroundStyle(.primary)

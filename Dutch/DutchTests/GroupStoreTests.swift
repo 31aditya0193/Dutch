@@ -39,6 +39,18 @@ struct GroupStoreTests {
         return container.viewContext
     }
 
+    /// A UUID whose sort position is its leading byte.
+    ///
+    /// For the one thing in the settlement that depends on the order ids happen
+    /// to fall in: when several sharers tie on the same fractional remainder,
+    /// `Money.split(among:)` hands the leftover minor units to the earliest
+    /// positions, and `SettlementCalculator.precedes` decides those by comparing
+    /// the uuid's bytes. A test that wants to know *which* sharer gets the extra
+    /// cent has to say what the order is instead of drawing it at random.
+    private static func orderedID(_ order: UInt8) -> UUID {
+        UUID(uuid: (order, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    }
+
     // MARK: - Creating
 
     @Test("Creating a group assigns an id, date and word sequence")
@@ -404,14 +416,33 @@ struct GroupStoreTests {
     /// through the JSON overlay, back out of the bridge and into balances.
     ///
     /// Wrocław → Trzcińsko: 145.01 zł, six people, one student fare at 51% off.
+    ///
+    /// The ids are pinned rather than left to the `UUID()` in `addMember`, and
+    /// that is the whole reason this test is reliable. Five travellers on a full
+    /// share come out with five *identical* fractional remainders, and
+    /// `Money.split(among:)` gives the two leftover cents to the earliest
+    /// positions — which `SettlementCalculator` orders by id. Invent fresh ids
+    /// each run and the pair is a different two travellers every time, so this
+    /// test's cent-exact expectations held about two runs in five.
+    ///
+    /// Nothing is wrong with the app: `precedes` sorts a given set of ids the
+    /// same way on every device, so the split is stable wherever it is computed.
+    /// Only a test that draws new ids on each run sees the tie move.
     @Test("A discounted fare divides correctly end to end")
     func discountedFareThroughTheStore() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let context = Self.makeContext()
+        let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Trzcińsko", currencyCode: "PLN")
 
         let names = ["Ala", "Bartek", "Celina", "Darek", "Ewa"]
-        let travellers = try names.map { try store.addMember(named: $0, to: group) }
+        let travellers = try names.enumerated().map { index, name in
+            let traveller = try store.addMember(named: name, to: group)
+            traveller.id = Self.orderedID(UInt8(index + 1))
+            return traveller
+        }
         let student = try store.addMember(named: "Franek", to: group)
+        student.id = Self.orderedID(6)
+        try context.save()
 
         var shares: [UUID: Int] = [:]
         for traveller in travellers {
@@ -429,13 +460,24 @@ struct GroupStoreTests {
         )
 
         let balances = group.balances
-        let studentBalance = try #require(balances.first { $0.participant.name == "Franek" })
-        #expect(studentBalance.amount == Money(cents: -1294))
+        func balance(of name: String) throws -> Money {
+            try #require(balances.first { $0.participant.name == name }).amount
+        }
+
+        #expect(try balance(of: "Franek") == Money(cents: -1294))
 
         // The buyer fronted the lot, so they are owed everything but their own
         // share of it.
-        let buyerBalance = try #require(balances.first { $0.participant.name == "Ala" })
-        #expect(buyerBalance.amount == Money(cents: 14501) - Money(cents: 2642))
+        #expect(try balance(of: "Ala") == Money(cents: 14501) - Money(cents: 2642))
+
+        // 145.01 zł over 549 share-units leaves every full share at 2641 and a
+        // remainder of two cents. Those go to the two earliest ids — Ala and
+        // Bartek, by the pinning above — and the rest pay the truncated share.
+        // Asserted per person because this is exactly what used to drift.
+        #expect(try balance(of: "Bartek") == Money(cents: -2642))
+        #expect(try balance(of: "Celina") == Money(cents: -2641))
+        #expect(try balance(of: "Darek") == Money(cents: -2641))
+        #expect(try balance(of: "Ewa") == Money(cents: -2641))
 
         // Nothing lost to rounding across six people and a 49% share.
         #expect(balances.reduce(Money.zero) { $0 + $1.amount } == .zero)

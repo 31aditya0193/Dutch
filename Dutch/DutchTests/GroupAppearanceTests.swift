@@ -51,7 +51,7 @@ struct GroupAppearanceTests {
         // 6E + 2C + 4B + 4E + 8A + 0C + 2E + 4A = 577
         // 9F + 1A + 3D + 5F + 7B + 1D + 3F + 5B = 647
         let expectedSymbol = GroupSymbol.allCases[577 % GroupSymbol.allCases.count]
-        let expectedColor = GroupColor.allCases[647 % GroupColor.allCases.count]
+        let expectedColor = PaletteColor.allCases[647 % PaletteColor.allCases.count]
 
         #expect(appearance.symbol == expectedSymbol)
         #expect(appearance.color == expectedColor)
@@ -64,7 +64,7 @@ struct GroupAppearanceTests {
     func derivationVaries() {
         let looks = (0..<500).map { _ in GroupAppearance.derived(from: UUID()) }
 
-        #expect(Set(looks.map(\.color)).count == GroupColor.allCases.count)
+        #expect(Set(looks.map(\.color)).count == PaletteColor.allCases.count)
         #expect(Set(looks.map(\.symbol)).count == GroupSymbol.allCases.count)
     }
 

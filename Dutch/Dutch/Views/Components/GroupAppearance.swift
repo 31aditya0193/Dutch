@@ -12,22 +12,23 @@ import SwiftUI
 /// what lets the stored values be plain strings that an older client can ignore.
 struct GroupAppearance: Equatable {
     var symbol: GroupSymbol
-    var color: GroupColor
+    var color: PaletteColor
 }
 
 // MARK: - Colour
 
-/// The colours a group can be tinted.
+/// The colours anything in the app can be tinted — groups here, people in
+/// `PersonAvatar`.
 ///
-/// Red and green are deliberately absent. The list row already spends both on
-/// the one number that matters — red for what you owe, green for what you are
-/// owed, see `Standing` — and a group tinted either would make that figure a
-/// thing to double-check rather than read.
+/// Red and green are deliberately absent. Every row that carries a colour also
+/// carries a balance, and the balance already spends both — red for what you
+/// owe, green for what you are owed, see `Standing`. A group or a person tinted
+/// either would make that figure a thing to double-check rather than read.
 ///
 /// Stored by name rather than as a component triple, so restyling the palette
 /// later restyles every group that already exists instead of freezing today's
 /// RGB into everyone's database.
-enum GroupColor: String, CaseIterable, Identifiable {
+enum PaletteColor: String, CaseIterable, Identifiable {
     case blue, teal, indigo, purple, pink, orange, brown, gray
 
     var id: String { rawValue }
@@ -179,7 +180,7 @@ extension GroupAppearance {
 
         return GroupAppearance(
             symbol: GroupSymbol.allCases[Int(symbolSeed % UInt64(GroupSymbol.allCases.count))],
-            color: GroupColor.allCases[Int(colorSeed % UInt64(GroupColor.allCases.count))]
+            color: PaletteColor.allCases[Int(colorSeed % UInt64(PaletteColor.allCases.count))]
         )
     }
 
@@ -189,7 +190,7 @@ extension GroupAppearance {
     static var random: GroupAppearance {
         GroupAppearance(
             symbol: GroupSymbol.allCases.randomElement() ?? .forkKnife,
-            color: GroupColor.allCases.randomElement() ?? .blue
+            color: PaletteColor.allCases.randomElement() ?? .blue
         )
     }
 }
@@ -207,7 +208,7 @@ extension ExpenseGroup {
         let derived = GroupAppearance.derived(from: id)
         return GroupAppearance(
             symbol: symbolName.flatMap(GroupSymbol.init(rawValue:)) ?? derived.symbol,
-            color: colorName.flatMap(GroupColor.init(rawValue:)) ?? derived.color
+            color: colorName.flatMap(PaletteColor.init(rawValue:)) ?? derived.color
         )
     }
 }

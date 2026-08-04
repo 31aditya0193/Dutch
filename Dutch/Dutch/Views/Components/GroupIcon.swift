@@ -47,7 +47,7 @@ struct GroupIcon: View {
 #Preview {
     VStack(spacing: 16) {
         HStack(spacing: 12) {
-            ForEach(GroupColor.allCases) { color in
+            ForEach(PaletteColor.allCases) { color in
                 GroupIcon(GroupAppearance(symbol: .airplane, color: color), size: 30)
             }
         }

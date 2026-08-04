@@ -265,6 +265,7 @@ struct GroupDetailView: View {
                 ForEach(contents.members, id: \.objectID) { member in
                     MemberBalanceRow(
                         name: member.name ?? "Unnamed",
+                        avatar: contents.avatars[member],
                         balance: member.id.flatMap { contents.balances[$0] },
                         currencyCode: group.currency,
                         isMe: member == me
@@ -552,6 +553,7 @@ private struct FormTarget: Identifiable {
 /// this screen mentions them a lot: the member list alone touched the balances
 /// once per row, each time walking every expense and re-running the whole
 /// settlement to pull out a single number.
+@MainActor
 private struct Contents {
     let members: [Person]
     let expenses: [Expense]
@@ -564,6 +566,10 @@ private struct Contents {
     /// Members keyed by id, so recording a payment can get from the `Transfer`
     /// the settlement produced back to the `Person` the store needs to write.
     let person: [UUID: Person]
+
+    /// One colour per member, resolved over the whole roster at once — see
+    /// `RosterAvatars` for why it cannot be done a row at a time.
+    let avatars: RosterAvatars
 
     /// The same numbers as a snapshot free of managed objects, ready to be
     /// rendered as shareable text. Built here because everything it needs is
@@ -581,6 +587,8 @@ private struct Contents {
             roster.compactMap { member in member.id.map { ($0, member) } },
             uniquingKeysWith: { first, _ in first }
         )
+
+        avatars = RosterAvatars(roster)
 
         let settlement = group.settlement(members: roster, expenses: log)
         balances = settlement.balanceByParticipant
@@ -618,6 +626,7 @@ private struct SharedSummary: Transferable {
 
 private struct MemberBalanceRow: View {
     let name: String
+    let avatar: PersonAvatar
     let balance: Money?
     let currencyCode: String
     /// Whether this is the person holding the phone, which changes the caption
@@ -627,43 +636,50 @@ private struct MemberBalanceRow: View {
     private var standing: Standing { Standing(balance: balance) }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(name)
+        // Two nested stacks rather than one: the avatar is a circle with no
+        // baseline to align to, and putting it in the `.firstTextBaseline` stack
+        // pinned its bottom edge to the name and left it floating high.
+        HStack(spacing: 12) {
+            PersonIcon(avatar)
 
-            // A badge rather than replacing the name with "You": the name is
-            // still how everyone else in the group refers to this person, and
-            // dropping it makes the row harder to scan, not easier.
-            if isMe {
-                Text("You")
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.tint.opacity(0.15), in: Capsule())
-                    .foregroundStyle(.tint)
-                    .accessibilityHidden(true)  // carried by the label below
-            }
+            HStack(alignment: .firstTextBaseline) {
+                Text(name)
 
-            Spacer(minLength: 12)
-
-            VStack(alignment: .trailing, spacing: 2) {
-                switch standing {
-                case .owes(let amount), .isOwed(let amount):
-                    // Was `.caption`: the smallest text on the row was also the
-                    // only number on it.
-                    Text(amount.formatted(currencyCode: currencyCode))
-                        .font(.body.weight(.medium))
-                        .monospacedDigit()
-                        .foregroundStyle(standing.tint)
-                        .contentTransition(.numericText())
-                case .settled:
-                    Text("Settled")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                // A badge rather than replacing the name with "You": the name is
+                // still how everyone else in the group refers to this person, and
+                // dropping it makes the row harder to scan, not easier.
+                if isMe {
+                    Text("You")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.tint.opacity(0.15), in: Capsule())
+                        .foregroundStyle(.tint)
+                        .accessibilityHidden(true)  // carried by the label below
                 }
 
-                Text(standing.caption(isMe: isMe))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    switch standing {
+                    case .owes(let amount), .isOwed(let amount):
+                        // Was `.caption`: the smallest text on the row was also
+                        // the only number on it.
+                        Text(amount.formatted(currencyCode: currencyCode))
+                            .font(.body.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(standing.tint)
+                            .contentTransition(.numericText())
+                    case .settled:
+                        Text("Settled")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(standing.caption(isMe: isMe))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .animation(.snappy, value: balance)
