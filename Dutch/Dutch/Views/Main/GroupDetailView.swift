@@ -38,6 +38,7 @@ struct GroupDetailView: View {
     @State private var showingEditGroup = false
     @State private var membersPendingDeletion: [Person] = []
     @State private var formTarget: FormTarget?
+    @State private var editTarget: EditTarget?
     @State private var errorMessage: String?
     /// Bumped on each successful add so the haptic fires once per confirmed
     /// write, rather than on any change to the counts (deletes included).
@@ -134,6 +135,11 @@ struct GroupDetailView: View {
         }
         .sheet(isPresented: $showingAddMember) {
             AddMemberSheet(onAdd: addMember)
+        }
+        .sheet(item: $editTarget) { target in
+            EditMemberSheet(member: target.member, avatar: target.avatar) { name, color in
+                updateMember(target.member, name: name, color: color)
+            }
         }
         .sheet(isPresented: $showingShareSheet) {
             ShareGroupView(group: group)
@@ -288,8 +294,18 @@ struct GroupDetailView: View {
                     // A context menu rather than a row of its own: identity is
                     // set once and never thought about again, and a permanent
                     // "who am I" control would sit in the way of the balances
-                    // for the rest of the trip.
+                    // for the rest of the trip. Renaming and recolouring are
+                    // here for the same reason, and above the identity items
+                    // because they apply to every row — including the ones
+                    // already claimed by somebody else.
                     .contextMenu {
+                        Button("Edit Member", systemImage: "pencil") {
+                            editTarget = EditTarget(
+                                member: member,
+                                avatar: contents.avatars[member]
+                            )
+                        }
+
                         if member == me {
                             Button("Not Me", systemImage: "person.slash") {
                                 setIdentity(nil)
@@ -363,9 +379,17 @@ struct GroupDetailView: View {
         }
     }
 
+    /// The log, one section per day.
+    ///
+    /// A week of receipts as one flat list is thirty rows with nothing to hold
+    /// on to; the same rows under "Sat 12 July" are a trip somebody can find
+    /// their way around. The date left the rows when it arrived in the headers —
+    /// a date on every row under a header that already says it is noise sitting
+    /// where the payer's name now goes.
+    @ViewBuilder
     private func expensesSection(_ contents: Contents) -> some View {
-        Section("Expenses") {
-            if contents.expenses.isEmpty {
+        if contents.days.isEmpty {
+            Section("Expenses") {
                 if contents.members.isEmpty {
                     Text("No expenses yet.")
                         .foregroundStyle(.secondary)
@@ -378,37 +402,58 @@ struct GroupDetailView: View {
                         Label("Add the First Expense", systemImage: "plus.circle")
                     }
                 }
-            } else {
-                ForEach(contents.expenses, id: \.objectID) { expense in
-                    // Payments are not editable: there is nothing in one to
-                    // correct except whether it happened, and that is what
-                    // deleting it says. Ordinary expenses open the form.
-                    if expense.isReimbursement {
-                        PaymentRow(expense: expense, currencyCode: group.currency)
-                    } else {
-                        Button {
-                            formTarget = FormTarget(expense: expense, mode: .edit)
-                        } label: {
-                            ExpenseRow(expense: expense, currencyCode: group.currency)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Opens the expense for editing")
-                        // Long-press rather than a swipe action or a button on
-                        // the row: repeating an expense is common enough to
-                        // want and rare enough that it shouldn't take up space
-                        // in a list people mostly read. Payments are left out —
-                        // a settlement is recorded from the section above, and
-                        // paying the same debt twice is a mistake, not a
-                        // shortcut.
-                        .contextMenu {
-                            Button("Duplicate", systemImage: "plus.square.on.square") {
-                                formTarget = FormTarget(expense: expense, mode: .duplicate)
-                            }
-                        }
+            }
+        } else {
+            ForEach(contents.days) { day in
+                Section(day.title) {
+                    ForEach(day.expenses, id: \.objectID) { expense in
+                        expenseRow(expense, in: contents)
+                    }
+                    // Per day, because the offsets a section hands back index
+                    // that section. Deleting against the whole log here would
+                    // remove whatever sat at the same offset in it — the right
+                    // row on the first day and the wrong one on every day
+                    // after it.
+                    .onDelete { offsets in
+                        delete(at: offsets, from: day.expenses)
                     }
                 }
-                .onDelete { offsets in
-                    delete(at: offsets, from: contents.expenses)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func expenseRow(_ expense: Expense, in contents: Contents) -> some View {
+        // Payments are not editable: there is nothing in one to correct except
+        // whether it happened, and that is what deleting it says. Ordinary
+        // expenses open the form.
+        if expense.isReimbursement {
+            PaymentRow(expense: expense, currencyCode: group.currency)
+        } else {
+            Button {
+                formTarget = FormTarget(expense: expense, mode: .edit)
+            } label: {
+                ExpenseRow(
+                    expense: expense,
+                    // From the same roster the members list is drawn from, not
+                    // derived here: an expense whose payer showed one colour on
+                    // one section and another two sections down would be worse
+                    // than no colour at all.
+                    avatar: expense.paidBy.map { contents.avatars[$0] },
+                    currencyCode: group.currency
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the expense for editing")
+            // Long-press rather than a swipe action or a button on the row:
+            // repeating an expense is common enough to want and rare enough
+            // that it shouldn't take up space in a list people mostly read.
+            // Payments are left out — a settlement is recorded from the section
+            // above, and paying the same debt twice is a mistake, not a
+            // shortcut.
+            .contextMenu {
+                Button("Duplicate", systemImage: "plus.square.on.square") {
+                    formTarget = FormTarget(expense: expense, mode: .duplicate)
                 }
             }
         }
@@ -552,6 +597,17 @@ struct GroupDetailView: View {
     /// A failed claim is deliberately quiet. Identity is a label — the balances
     /// do not depend on it — and an error banner over "you tapped your own name"
     /// would be a louder failure than the thing that failed.
+    /// Applies a rename and a colour from the sheet. Loud on failure, unlike
+    /// `setIdentity`: this one is a write to a record everybody in the group
+    /// sees, so a save that didn't happen is worth saying so.
+    private func updateMember(_ member: Person, name: String, color: PaletteColor?) {
+        do {
+            try store.update(member, name: name, color: color)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func setIdentity(_ member: Person?) {
         ExpenseDefaults.rememberMe(member, in: group)
         try? store.claim(member, in: group)
@@ -598,6 +654,19 @@ private struct FormTarget: Identifiable {
     var id: String { "\(mode.rawValue)-\(expense.objectID.uriRepresentation())" }
 }
 
+/// The member being edited, with the avatar the row was already showing so the
+/// sheet opens on it rather than re-deriving one.
+///
+/// Keyed on the object id for the same reason `FormTarget` is: `Person.id` is
+/// optional for CloudKit's sake, and a sheet keyed on a `nil` one would simply
+/// never present.
+private struct EditTarget: Identifiable {
+    let member: Person
+    let avatar: PersonAvatar
+
+    var id: NSManagedObjectID { member.objectID }
+}
+
 // MARK: - Render Snapshot
 
 /// Everything `GroupDetailView` reads off its group, gathered in one pass.
@@ -606,14 +675,44 @@ private struct FormTarget: Identifiable {
 /// this screen mentions them a lot: the member list alone touched the balances
 /// once per row, each time walking every expense and re-running the whole
 /// settlement to pull out a single number.
+/// One day of the log, as the expense list renders it.
+///
+/// Grouped in memory rather than through a `SectionedFetchRequest`, which wants
+/// its section identifier to be a property Core Data can sort on — that would
+/// have meant a stored day string on every `Expense`, a model version to add it,
+/// a CloudKit schema promotion, and a value that has to be kept in step with the
+/// date beside it forever. The fetch already hands these over sorted by date, so
+/// the grouping is one pass with a comparison in it.
+private struct ExpenseDay: Identifiable {
+    let day: Date
+    var expenses: [Expense]
+
+    var id: Date { day }
+
+    /// "Today", "Yesterday", or the date. Relative wording only where it is
+    /// genuinely easier to place than a date — past yesterday, "3 weeks ago" is
+    /// something to work out rather than read, and the weekday is what somebody
+    /// reconstructing a trip actually remembers.
+    var title: String {
+        let calendar = Calendar.current
+        if day == .distantPast { return "Undated" }
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        return day.formatted(.dateTime.weekday(.abbreviated).day().month(.wide))
+    }
+}
+
 @MainActor
 private struct Contents {
     let members: [Person]
-    let expenses: [Expense]
+    /// The log, cut into days and newest first — the order the fetch hands it
+    /// over in. The flat array it replaced had no readers left once the list
+    /// went sectioned.
+    let days: [ExpenseDay]
     let balances: [Participant.ID: Money]
     let transfers: [Transfer]
     let totalSpent: Money
-    /// How many of `expenses` are actual spending rather than settling up.
+    /// How many of the expenses are actual spending rather than settling up.
     let spendingCount: Int
 
     /// Members keyed by id, so recording a payment can get from the `Transfer`
@@ -634,7 +733,21 @@ private struct Contents {
     /// fetch requests that sorted them in SQLite — see `Person.request(in:)`.
     init(group: ExpenseGroup, members roster: [Person], expenses log: [Expense]) {
         members = roster
-        expenses = log
+
+        // A single pass, because `log` is already sorted by date descending —
+        // see `Expense.request(in:)`. A record with no date at all gets its own
+        // bucket rather than being dropped: it sorts last out of SQLite, so the
+        // bucket lands at the bottom, and a row missing from the log would be
+        // money missing from the screen.
+        let calendar = Calendar.current
+        days = log.reduce(into: []) { days, expense in
+            let day = expense.date.map(calendar.startOfDay(for:)) ?? .distantPast
+            if days.last?.day == day {
+                days[days.count - 1].expenses.append(expense)
+            } else {
+                days.append(ExpenseDay(day: day, expenses: [expense]))
+            }
+        }
 
         person = Dictionary(
             roster.compactMap { member in member.id.map { ($0, member) } },
@@ -708,13 +821,19 @@ private struct MemberBalanceRow: View {
     }
 
     var body: some View {
-        // Two nested stacks rather than one: the avatar is a circle with no
-        // baseline to align to, and putting it in the `.firstTextBaseline` stack
-        // pinned its bottom edge to the name and left it floating high.
+        // The balance and its caption sit in the *outer* stack, deliberately.
+        // They used to share a `.firstTextBaseline` stack with the name, which
+        // made the row two lines tall and pinned the name to the top of it —
+        // while the avatar, a circle with no baseline to align to, centred
+        // itself against the whole height. The name ended up riding several
+        // points above the circle it belongs to. Everything here is centred
+        // against everything else instead, so the name and its avatar agree.
         HStack(spacing: 12) {
             PersonIcon(avatar)
 
-            HStack(alignment: .firstTextBaseline) {
+            // Still nested, for the spacing alone: the badges belong tight to
+            // the name at 6pt, not at the 12 that separates the row's columns.
+            HStack(spacing: 6) {
                 Text(name)
 
                 // A badge rather than replacing the name with "You": the name is
@@ -741,29 +860,29 @@ private struct MemberBalanceRow: View {
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)  // carried by the label below
                 }
+            }
 
-                Spacer(minLength: 12)
+            Spacer(minLength: 12)
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    switch standing {
-                    case .owes(let amount), .isOwed(let amount):
-                        // Was `.caption`: the smallest text on the row was also
-                        // the only number on it.
-                        Text(amount.formatted(currencyCode: currencyCode))
-                            .font(.body.weight(.medium))
-                            .monospacedDigit()
-                            .foregroundStyle(standing.tint)
-                            .contentTransition(.numericText())
-                    case .settled:
-                        Text("Settled")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(standing.caption(isMe: isMe))
-                        .font(.caption2)
+            VStack(alignment: .trailing, spacing: 2) {
+                switch standing {
+                case .owes(let amount), .isOwed(let amount):
+                    // Was `.caption`: the smallest text on the row was also
+                    // the only number on it.
+                    Text(amount.formatted(currencyCode: currencyCode))
+                        .font(.body.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(standing.tint)
+                        .contentTransition(.numericText())
+                case .settled:
+                    Text("Settled")
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+
+                Text(standing.caption(isMe: isMe))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
         .animation(.snappy, value: balance)
@@ -840,25 +959,39 @@ private struct TransferRow: View {
 
 private struct ExpenseRow: View {
     let expense: Expense
+    /// The payer's avatar, so the colour that identifies them on the members
+    /// list identifies their spending too — the log becomes scannable by whose
+    /// it is before a word of it is read.
+    ///
+    /// Optional because `paidBy` is: an expense whose payer is mid-sync still
+    /// has to draw a row, and `SettlementBridge` already drops it from the
+    /// maths. It falls back to the grey no-name circle rather than to a gap,
+    /// which would break the column the rest of the list lines up on.
+    let avatar: PersonAvatar?
     let currencyCode: String
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(spacing: 12) {
+            PersonIcon(avatar ?? PersonAvatar(initials: nil, color: .gray), size: 26)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(expense.title ?? "Untitled")
                     .font(.body)
-                if let date = expense.date {
-                    Text(date.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let payer = expense.paidBy {
-                    // `.secondary`, not `.tertiary`: tertiary is for decoration,
-                    // and who paid is the point of the row.
-                    Text("Paid by \(payer.name ?? "?")")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+
+                // Three lines once — title, date, "Paid by X". The date moved to
+                // the day header above and the circle carries the payer, which
+                // leaves the name as the one thing still worth a second line:
+                // initials are ambiguous and a colour has to be learned.
+                //
+                // `.secondary`, not `.tertiary`: tertiary is for decoration, and
+                // who paid is the point of the row.
+                Text(expense.paidBy?.name ?? "?")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    // Spelled out for VoiceOver, which gets no colour from the
+                    // circle and would otherwise hear a bare name with nothing
+                    // saying what it is doing there.
+                    .accessibilityLabel("Paid by \(expense.paidBy?.name ?? "unknown")")
             }
 
             Spacer(minLength: 12)
@@ -896,6 +1029,12 @@ private struct PaymentRow: View {
     let expense: Expense
     let currencyCode: String
 
+    /// The width of an expense row's avatar, tracked so the two kinds of row in
+    /// this list start their text on the same column. Same base, same
+    /// relative-to and same cap as `PersonIcon`, so they stay together at every
+    /// type size rather than only at the default one.
+    @ScaledMetric(relativeTo: .body) private var iconSide: CGFloat = 26
+
     private var sentence: String {
         let payer = expense.paidBy?.name ?? "?"
         let recipient = expense.reimbursementRecipient?.name ?? "?"
@@ -903,21 +1042,20 @@ private struct PaymentRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(spacing: 12) {
+            // A bare glyph rather than a circle: a payment has two people in it
+            // and no single colour to carry, and giving it an avatar-shaped mark
+            // would make it read as somebody's expense.
             Image(systemName: "arrow.left.arrow.right")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .frame(width: min(iconSide, 26 * 1.4))
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(sentence)
-                    .font(.callout)
-                if let date = expense.date {
-                    Text(date.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            // One line now the day header carries the date. A payment has no
+            // title to pair a date with, so dropping it left nothing behind.
+            Text(sentence)
+                .font(.callout)
 
             Spacer(minLength: 12)
 

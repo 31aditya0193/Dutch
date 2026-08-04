@@ -4,6 +4,59 @@
 
 import SwiftUI
 
+/// The palette as a grid of swatches. Renders as a row, so it goes inside a
+/// `Section` in whatever `Form` is presenting it.
+///
+/// Shared by everything that lets somebody pick a colour — a group's, in
+/// `AppearancePicker`, and a member's, in `EditMemberSheet`. One grid rather
+/// than two, so the two cannot drift into different swatch sizes, different tap
+/// targets or different selection marks while claiming to offer the same eight
+/// colours.
+struct PaletteColorGrid: View {
+    @Binding var selection: PaletteColor
+
+    /// A tap target of 44 with a smaller swatch inside it, rather than a 28pt
+    /// button that happens to be easy to miss.
+    private let target: CGFloat = 44
+
+    var body: some View {
+        // Wrapping rather than a horizontal scroll: eight swatches fit across
+        // every phone at ordinary type sizes, and a row that scrolls hides
+        // choices behind a gesture nobody knows is there.
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: target), spacing: 4)], spacing: 4) {
+            ForEach(PaletteColor.allCases) { color in
+                Button {
+                    selection = color
+                } label: {
+                    Circle()
+                        .fill(color.tint.gradient)
+                        .frame(width: 28, height: 28)
+                        .padding(4)
+                        .overlay {
+                            Circle()
+                                .strokeBorder(color.tint, lineWidth: 2)
+                                .opacity(selection == color ? 1 : 0)
+                        }
+                        .frame(width: target, height: target)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(color.label)
+                .accessibilityAddTraits(selection == color ? [.isSelected] : [])
+            }
+        }
+        .animation(.snappy, value: selection)
+        // On the grid rather than on whatever is presenting it, so a colour
+        // picked anywhere feels the same. `AppearancePicker` triggers on the
+        // symbol alone for that reason — leaving it on the whole appearance
+        // would fire twice for one tap on a swatch.
+        .sensoryFeedback(.selection, trigger: selection)
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Colour")
+    }
+}
+
 /// Picks a group's symbol and colour. Renders as rows, so it goes inside a
 /// `Section` in whatever `Form` is presenting it.
 ///
@@ -20,44 +73,10 @@ struct AppearancePicker: View {
 
     var body: some View {
         Group {
-            colors
+            PaletteColorGrid(selection: $appearance.color)
             symbols
         }
-        .sensoryFeedback(.selection, trigger: appearance)
-    }
-
-    // MARK: - Colours
-
-    private var colors: some View {
-        // Wrapping rather than a horizontal scroll: eight swatches fit across
-        // every phone at ordinary type sizes, and a row that scrolls hides
-        // choices behind a gesture nobody knows is there.
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: target), spacing: 4)], spacing: 4) {
-            ForEach(PaletteColor.allCases) { color in
-                Button {
-                    appearance.color = color
-                } label: {
-                    Circle()
-                        .fill(color.tint.gradient)
-                        .frame(width: 28, height: 28)
-                        .padding(4)
-                        .overlay {
-                            Circle()
-                                .strokeBorder(color.tint, lineWidth: 2)
-                                .opacity(appearance.color == color ? 1 : 0)
-                        }
-                        .frame(width: target, height: target)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(color.label)
-                .accessibilityAddTraits(appearance.color == color ? [.isSelected] : [])
-            }
-        }
-        .animation(.snappy, value: appearance.color)
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Colour")
+        .sensoryFeedback(.selection, trigger: appearance.symbol)
     }
 
     // MARK: - Symbols

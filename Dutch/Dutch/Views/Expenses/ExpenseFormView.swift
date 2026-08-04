@@ -233,7 +233,7 @@ struct ExpenseFormView: View {
         NavigationStack {
             Form {
                 detailsSection
-                paidBySection(roster)
+                paidBySection(roster, avatars)
                 splitAmongSection(slices, roster, avatars)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -269,6 +269,14 @@ struct ExpenseFormView: View {
             // One haptic per change to the selection as a whole. Per-row
             // feedback would fire six times at once on "Everyone".
             .sensoryFeedback(.selection, trigger: selectedParticipants)
+            // Picking a payer is a tap on a row that looks like those, so it
+            // has to feel like one. A second modifier rather than a combined
+            // trigger, because the payer is usually already a sharer and the
+            // set above then doesn't change at all — folding them together
+            // would leave the commonest tap on this screen silent. When the
+            // payer *wasn't* sharing, both fire in the same frame, which the
+            // haptic engine renders as the one tap it was.
+            .sensoryFeedback(.selection, trigger: selectedPayer)
             .alert("Custom Share", isPresented: customBinding) {
                 TextField("Percent", text: $customText)
                     .keyboardType(.numberPad)
@@ -376,17 +384,32 @@ struct ExpenseFormView: View {
         }
     }
 
-    private func paidBySection(_ members: [Person]) -> some View {
+    /// Rows rather than a `Picker`, so the payer carries the same circle the
+    /// same person carries in the section directly below — and on the members
+    /// list, and against every expense they paid for. A form that drew the same
+    /// roster twice, once as colour and once as bare text, made the reader check
+    /// whether they were even the same people.
+    ///
+    /// The cost is real and taken deliberately: the section is now as tall as
+    /// the roster where it used to be one row. It sits at the top of a form
+    /// nobody gets through without scrolling, and the tap it saves — open the
+    /// menu, find the name, tap again — is one every expense pays.
+    ///
+    /// The old "Select…" row is gone with it. Nothing checked already says
+    /// nothing is chosen, and Save stays disabled until something is.
+    private func paidBySection(_ members: [Person], _ avatars: RosterAvatars) -> some View {
         Section("Paid By") {
             if members.isEmpty {
                 Text("Add members first.")
                     .foregroundStyle(.secondary)
             } else {
-                Picker("Who paid?", selection: $selectedPayer) {
-                    Text("Select…").tag(nil as Person?)
-                    ForEach(members, id: \.objectID) { member in
-                        Text(member.name ?? "?").tag(member as Person?)
-                    }
+                ForEach(members, id: \.objectID) { member in
+                    PayerRow(
+                        name: member.name ?? "?",
+                        avatar: avatars[member],
+                        isSelected: selectedPayer == member,
+                        onTap: { selectedPayer = member }
+                    )
                 }
             }
         }
@@ -700,6 +723,55 @@ struct ExpenseFormView: View {
     }
 }
 
+// MARK: - Payer Row
+
+/// One candidate payer.
+///
+/// The same circle and the same 12pt gutter as `MemberSplitRow` below, because
+/// the two sections list the same people — but a bare checkmark where that one
+/// has a filled circle. They are different questions: the split takes any number
+/// of people and shows an empty circle per row to say so, where exactly one
+/// person paid. Reusing the multi-select mark here would have promised a choice
+/// this section doesn't offer.
+private struct PayerRow: View {
+    let name: String
+    let avatar: PersonAvatar
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Dimmed rather than hidden for the row that isn't the payer,
+                // for the same reason as the split rows: a circle that vanishes
+                // makes the list jump as the selection moves.
+                PersonIcon(avatar)
+                    .opacity(isSelected ? 1 : 0.4)
+
+                Text(name)
+                    .foregroundStyle(.primary)
+
+                Spacer(minLength: 12)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.tint)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint("Marks this person as the one who paid")
+        // The same person is now a row in both sections of this form, so a UI
+        // test reaching for them by name has two candidates and takes whichever
+        // the tree walks into first. An identifier is invisible to VoiceOver —
+        // the label above is what gets spoken — and says which row is meant.
+        .accessibilityIdentifier("payer-\(name)")
+    }
+}
+
 // MARK: - Member Row
 
 /// Extracted so the `Form` body stays small enough for the type checker.
@@ -759,6 +831,8 @@ private struct MemberSplitRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+            // See `PayerRow`: the same name appears in both sections now.
+            .accessibilityIdentifier("sharer-\(name)")
 
             if isSelected, let share {
                 // A menu, not a stepper or a slider. The two cases this exists

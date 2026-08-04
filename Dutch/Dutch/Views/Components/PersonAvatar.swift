@@ -93,6 +93,22 @@ extension PaletteColor {
 
 }
 
+// MARK: - Chosen colour
+
+extension Person {
+    /// The colour somebody picked for this member, if anybody did.
+    ///
+    /// An override rather than the source, exactly as `ExpenseGroup.appearance`
+    /// is: unset — or a name a newer version of the app invented and synced down
+    /// here — falls through to the roster's own assignment rather than to a
+    /// placeholder. Stored by name for the same reason the group's is, so
+    /// restyling the palette restyles everyone who already picked from it.
+    var chosenColor: PaletteColor? {
+        get { colorName.flatMap(PaletteColor.init(rawValue:)) }
+        set { colorName = newValue?.rawValue }
+    }
+}
+
 // MARK: - Roster
 
 /// The avatars for one group's members, assigned so that no two of them share a
@@ -120,8 +136,23 @@ struct RosterAvatars {
         let ordered = members.sorted { ($0.id?.uuidString ?? "") < ($1.id?.uuidString ?? "") }
         let palette = PaletteColor.allCases
 
+        // Two passes, and the order between them is the whole point. A colour
+        // somebody picked is placed before anything is derived, so it is the
+        // automatic neighbours that move out of the way — one pass would let
+        // whoever came first in the walk take a colour another member had
+        // explicitly asked for, and the person who chose it would watch their
+        // circle change because somebody else joined the group.
         var taken: Set<PaletteColor> = []
         for member in ordered {
+            // Two members who both chose teal both get teal. That is what they
+            // asked for, and second-guessing it would mean the picker sometimes
+            // doesn't do what it says.
+            guard let chosen = member.chosenColor else { continue }
+            colors[member.objectID] = chosen
+            taken.insert(chosen)
+        }
+
+        for member in ordered where colors[member.objectID] == nil {
             // Past the end of the palette the cycle starts over. A group of
             // more than eight is already past the point where colour is doing
             // much work, and repeating beats handing everyone after the eighth
@@ -144,12 +175,12 @@ struct RosterAvatars {
     }
 
     /// The avatar for a member. A person who wasn't in the roster this was built
-    /// from still gets their derived colour rather than nothing, so a row that
+    /// from still gets their own colour rather than nothing, so a row that
     /// arrives mid-sync draws correctly instead of blank.
     subscript(member: Person) -> PersonAvatar {
         PersonAvatar(
             initials: PersonAvatar.initials(from: member.name),
-            color: colors[member.objectID] ?? .derived(from: member.id)
+            color: colors[member.objectID] ?? member.chosenColor ?? .derived(from: member.id)
         )
     }
 }

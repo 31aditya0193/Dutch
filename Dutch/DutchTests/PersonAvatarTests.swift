@@ -165,6 +165,65 @@ struct PersonAvatarTests {
         #expect(counts.count == PaletteColor.allCases.count)
     }
 
+    // MARK: - Chosen colour
+
+    @Test("A chosen colour is what the member gets")
+    func chosenColourIsUsed() {
+        let context = TestStack.makeContext()
+        let member = Self.makePerson("Anna Kowalska", in: context)
+        member.chosenColor = .pink
+
+        #expect(RosterAvatars([member])[member].color == .pink)
+    }
+
+    /// The reason the assignment runs in two passes. In one pass whoever came
+    /// first in the id-ordered walk would take a colour somebody else had
+    /// explicitly asked for, and the person who chose it would watch their
+    /// circle change because another member joined the group.
+    @Test("A chosen colour displaces the automatic assignment, not the reverse")
+    func chosenColourDisplacesTheDerivedOne() throws {
+        let context = TestStack.makeContext()
+
+        // A fixed id, so the colour the automatic member wants is known and the
+        // collision this tests for is guaranteed rather than hoped for.
+        let id = try #require(UUID(uuidString: "6E9F2C1A-4B3D-4E5F-8A7B-0C1D2E3F4A5B"))
+        let contested = PaletteColor.derived(from: id)
+
+        let automatic = Self.makePerson("Automatic", id: id, in: context)
+        let chooser = Self.makePerson("Chooser", in: context)
+        chooser.chosenColor = contested
+
+        let avatars = RosterAvatars([automatic, chooser])
+        #expect(avatars[chooser].color == contested)
+        #expect(avatars[automatic].color != contested)
+    }
+
+    /// Unset has to stay a real state rather than a stored default that happens
+    /// to match, or "Use Automatic Colour" would freeze today's answer forever.
+    @Test("Clearing a chosen colour hands the member back to the derivation")
+    func clearingRestoresTheDerivedColour() {
+        let context = TestStack.makeContext()
+        let member = Self.makePerson("Anna Kowalska", in: context)
+
+        member.chosenColor = .pink
+        member.chosenColor = nil
+
+        #expect(member.colorName == nil)
+        #expect(RosterAvatars([member])[member].color == .derived(from: member.id))
+    }
+
+    /// A newer version of the app can invent a colour and sync it down here. It
+    /// must read as "nothing chosen" rather than crashing or drawing blank.
+    @Test("A colour name this version doesn't know falls back to the derivation")
+    func unknownColourNameFallsBack() {
+        let context = TestStack.makeContext()
+        let member = Self.makePerson("Anna Kowalska", in: context)
+        member.colorName = "chartreuse"
+
+        #expect(member.chosenColor == nil)
+        #expect(RosterAvatars([member])[member].color == .derived(from: member.id))
+    }
+
     /// A member the palette was not built from — a row that arrives mid-sync —
     /// must still draw, rather than falling through to nothing.
     @Test("A member outside the roster still gets an avatar")

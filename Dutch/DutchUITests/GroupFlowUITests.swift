@@ -62,12 +62,14 @@ final class GroupFlowUITests: XCTestCase {
         amountField.tap()
         amountField.typeText("30")
 
-        app.buttons["Who paid?"].tap()
-        app.buttons["Alice"].tap()
+        // The payer is a row now, not a menu — and the same name appears in
+        // both sections of this form, so both taps go through the identifiers
+        // rather than through a name and a `firstMatch`.
+        app.buttons["payer-Alice"].tap()
 
         // Alice is preselected as a sharer; add Bob. The split rows are
-        // buttons now, not tap gestures on text.
-        app.buttons["Bob"].firstMatch.tap()
+        // buttons too, not tap gestures on text.
+        app.buttons["sharer-Bob"].tap()
 
         app.buttons["Save"].tap()
 
@@ -106,8 +108,7 @@ final class GroupFlowUITests: XCTestCase {
         titleField.typeText("Coffee")
         app.textFields["Amount"].tap()
         app.textFields["Amount"].typeText("5")
-        app.buttons["Who paid?"].tap()
-        app.buttons["Alice"].tap()
+        app.buttons["payer-Alice"].tap()
         app.buttons["Save"].tap()
 
         let expense = app.staticTexts["Coffee"]

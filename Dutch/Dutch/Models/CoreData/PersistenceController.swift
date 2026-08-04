@@ -261,6 +261,12 @@ final class PersistenceController {
 
 // MARK: - Preview Support
 
+/// Left unguarded, and measured on 2026-08-04 rather than assumed. Wrapping this
+/// and every `#Preview` in `#if DEBUG` is the standard advice for a binary this
+/// size-sensitive, and here it is worth nothing: a Release archive contains no
+/// preview registration and not even the `"Berlin Trip"` string literal, because
+/// the macro's expansion is already dropped from the shipping build. Adding the
+/// guard back costs thirty lines of `#if` and saves zero bytes.
 extension PersistenceController {
     /// An in-memory instance for SwiftUI previews and tests.
     static let preview: PersistenceController = {
@@ -306,5 +312,13 @@ extension PersistenceController {
             fatalError("Preview sample data is missing its ExpenseGroup.")
         }
         return group
+    }
+
+    /// One member of the sample group, for the views that take a `Person`.
+    static var previewMember: Person {
+        guard let member = (previewGroup.members as? Set<Person>)?.first else {
+            fatalError("Preview sample data is missing its Person.")
+        }
+        return member
     }
 }

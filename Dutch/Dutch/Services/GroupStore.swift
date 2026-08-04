@@ -64,6 +64,27 @@ struct GroupStore {
         return person
     }
 
+    /// Renames a member and sets the colour of their circle, or with a `nil`
+    /// colour hands them back to the roster's automatic assignment.
+    ///
+    /// Both in one call, like `update(_ group:name:appearance:)` above, because
+    /// both are facts about who this person *is* to everyone on the trip rather
+    /// than preferences of whoever happens to be looking — and because the sheet
+    /// that calls this can change either.
+    ///
+    /// Unset is a real state and not a default — see `Person.chosenColor` — so
+    /// clearing the colour restores the derived one rather than freezing today's
+    /// answer as a stored value that happens to match.
+    ///
+    /// Renaming is the whole reason this exists. Until it did, a name typed
+    /// wrong at a dinner table was permanent, and it was permanent on everyone
+    /// else's phone too.
+    func update(_ member: Person, name: String, color: PaletteColor?) throws {
+        member.name = name
+        member.chosenColor = color
+        try context.save()
+    }
+
     /// Records that a member is this device's iCloud account, or with `nil`
     /// gives up the claim.
     ///
