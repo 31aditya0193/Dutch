@@ -266,6 +266,7 @@ struct GroupDetailView: View {
                     MemberBalanceRow(
                         name: member.name ?? "Unnamed",
                         avatar: contents.avatars[member],
+                        isLinked: CloudIdentity.isSomeoneElse(member),
                         balance: member.id.flatMap { contents.balances[$0] },
                         currencyCode: group.currency,
                         isMe: member == me
@@ -279,6 +280,13 @@ struct GroupDetailView: View {
                             Button("Not Me", systemImage: "person.slash") {
                                 setIdentity(nil)
                             }
+                        } else if CloudIdentity.isSomeoneElse(member) {
+                            // Offered as a disabled row rather than hidden, so
+                            // the answer to "why can't I pick this one?" is on
+                            // screen instead of being an unexplained gap in a
+                            // menu every other row has.
+                            Button("Already Someone Else", systemImage: "person.fill.xmark") {}
+                                .disabled(true)
                         } else {
                             Button("This Is Me", systemImage: "person.crop.circle.badge.checkmark") {
                                 setIdentity(member)
@@ -511,8 +519,20 @@ struct GroupDetailView: View {
         }
     }
 
+    /// Records who this device belongs to, both ways at once.
+    ///
+    /// The local key first, because it is the one that cannot fail: it needs no
+    /// iCloud account and no network, and it is all a group that was never
+    /// shared will ever have. The claim then rides on top when there *is* an
+    /// account, which is what carries the answer to this person's other devices
+    /// and to everyone else's copy of the group.
+    ///
+    /// A failed claim is deliberately quiet. Identity is a label — the balances
+    /// do not depend on it — and an error banner over "you tapped your own name"
+    /// would be a louder failure than the thing that failed.
     private func setIdentity(_ member: Person?) {
         ExpenseDefaults.rememberMe(member, in: group)
+        try? store.claim(member, in: group)
         withAnimation(.snappy) { me = member }
     }
 
@@ -627,6 +647,10 @@ private struct SharedSummary: Transferable {
 private struct MemberBalanceRow: View {
     let name: String
     let avatar: PersonAvatar
+    /// Whether this member has been claimed by an iCloud account other than
+    /// this device's — which is to say, they are here on a phone of their own
+    /// rather than being a name somebody typed in on everyone's behalf.
+    let isLinked: Bool
     let balance: Money?
     let currencyCode: String
     /// Whether this is the person holding the phone, which changes the caption
@@ -634,6 +658,11 @@ private struct MemberBalanceRow: View {
     let isMe: Bool
 
     private var standing: Standing { Standing(balance: balance) }
+
+    private var accessibleName: String {
+        if isMe { return "\(name), you" }
+        return isLinked ? "\(name), joined on iCloud" : name
+    }
 
     var body: some View {
         // Two nested stacks rather than one: the avatar is a circle with no
@@ -655,6 +684,16 @@ private struct MemberBalanceRow: View {
                         .padding(.vertical, 2)
                         .background(.tint.opacity(0.15), in: Capsule())
                         .foregroundStyle(.tint)
+                        .accessibilityHidden(true)  // carried by the label below
+                } else if isLinked {
+                    // A glyph rather than a second capsule. "You" is worth a
+                    // badge because it changes how the whole row reads; this
+                    // only says the row has a person behind it, and a row of
+                    // capsules would make the one that matters stop standing
+                    // out.
+                    Image(systemName: "checkmark.icloud")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                         .accessibilityHidden(true)  // carried by the label below
                 }
 
@@ -684,7 +723,7 @@ private struct MemberBalanceRow: View {
         }
         .animation(.snappy, value: balance)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(isMe ? "\(name), you" : name)
+        .accessibilityLabel(accessibleName)
         .accessibilityValue(standing.accessibleValue(isMe: isMe, currencyCode: currencyCode))
     }
 }

@@ -26,6 +26,16 @@ struct DutchApp: App {
         WindowGroup {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.viewContext)
+                // Asked once per launch, and on every return from the
+                // background, because signing out of iCloud does not restart
+                // the app: without the second case a member stays badged "You"
+                // for whoever picks the phone up next. See `CloudIdentity`.
+                .task { await CloudIdentity.refresh() }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active {
+                        Task { await CloudIdentity.refresh() }
+                    }
+                }
         }
         // On the way to the background, not on the way in: the group the user
         // was last in is only settled once they stop looking at it, and

@@ -64,6 +64,31 @@ struct GroupStore {
         return person
     }
 
+    /// Records that a member is this device's iCloud account, or with `nil`
+    /// gives up the claim.
+    ///
+    /// Only ever writes *this* device's own account — there is no path here for
+    /// saying who somebody else is. That is not a simplification: the owner
+    /// deciding that a given Apple ID is "Bartek" is a guess, and a guess that
+    /// syncs to everyone and renames their identity. Each person claiming their
+    /// own row is self-correcting, and the only version where the claim is
+    /// evidence rather than an assumption.
+    ///
+    /// The claim is released from any member who held it first, so a correction
+    /// moves the link rather than leaving the same Apple ID on two rows and
+    /// making `ExpenseDefaults.me` pick whichever the roster sorted first.
+    func claim(_ person: Person?, in group: ExpenseGroup) throws {
+        guard let recordName = CloudIdentity.current else { return }
+
+        for member in (group.members as? Set<Person>) ?? []
+        where member.cloudUserRecordName == recordName {
+            member.cloudUserRecordName = nil
+        }
+        person?.cloudUserRecordName = recordName
+
+        try context.save()
+    }
+
     /// Deletes a group along with its members and expenses, via the model's
     /// cascade rules.
     func delete(_ group: ExpenseGroup) throws {

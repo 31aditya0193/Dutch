@@ -150,14 +150,32 @@ enum ExpenseDefaults {
     /// since removed from the group yields `nil` and the screens fall back to
     /// naming everyone in the third person — which is what they did before any
     /// of this existed.
+    ///
+    /// The synced iCloud link is consulted first, and beats the local key when
+    /// the two disagree. That order is the point of the link: it is the answer
+    /// this person gave on *some* device of theirs, so a new phone, a restore,
+    /// or an iPad picked up mid-trip resolves identity with nothing to tap. The
+    /// local key stays underneath it for the cases the link cannot cover — a
+    /// group that was never shared, a member standing in for someone with no
+    /// iPhone, or simply nobody being signed in to iCloud.
     static func me(in group: ExpenseGroup, among members: [Person]) -> Person? {
+        if let linked = members.first(where: CloudIdentity.isMe) { return linked }
+
         guard
             let key = identityKey(for: group),
             let stored = store.string(forKey: key),
             let id = UUID(uuidString: stored)
         else { return nil }
 
-        return members.first { $0.id == id }
+        // Never contradict the link. If this device once said "I am Ala" and
+        // Ala has since been claimed by another Apple ID, the claim is the more
+        // recent and better-evidenced answer, and the stale local key would
+        // otherwise put a "You" badge on somebody else's row.
+        guard let candidate = members.first(where: { $0.id == id }),
+              !CloudIdentity.isSomeoneElse(candidate)
+        else { return nil }
+
+        return candidate
     }
 
     /// Sets, or with `nil` clears, who this device belongs to in the group.
