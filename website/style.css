@@ -60,11 +60,14 @@ a { color: #1668d6; }
 header {
   border-bottom: 1px solid var(--line);
   position: sticky;
-  top: 0;
+  top: var(--mw-bar-h, 0px); /* clears the smigi.net titlebar when present */
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: saturate(160%) blur(12px);
   z-index: 10;
 }
+
+/* In windowed mode the page scrolls inside the frame, so stick to its top */
+html.mw-windowed header { top: 0; }
 header .wrap {
   display: flex;
   align-items: center;
