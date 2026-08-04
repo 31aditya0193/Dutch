@@ -98,11 +98,6 @@ enum CloudSharingService {
         try container.fetchShares(matching: [group.objectID])[group.objectID]
     }
 
-    /// Whether the group is shared with anyone.
-    static func isShared(_ group: ExpenseGroup) -> Bool {
-        (try? existingShare(for: group)) .flatMap { $0 } != nil
-    }
-
     // MARK: - Accepting a share
 
     /// Accepts an invitation opened from a link or QR code, routing the data

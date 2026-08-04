@@ -17,31 +17,11 @@ import Testing
 @Suite("Intents")
 struct IntentTests {
 
-    /// A fresh, isolated in-memory stack per test, exactly as `GroupStoreTests`
-    /// builds one — plain `NSPersistentContainer`, so no iCloud account is
-    /// needed and nothing mirrors.
-    private static func makeContext() -> NSManagedObjectContext {
-        let container = NSPersistentContainer(
-            name: "Dutch",
-            managedObjectModel: PersistenceController.managedObjectModel
-        )
-
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        container.persistentStoreDescriptions = [description]
-
-        var loadError: Error?
-        container.loadPersistentStores { _, error in loadError = error }
-        precondition(loadError == nil, "In-memory store failed to load: \(loadError!)")
-
-        return container.viewContext
-    }
-
     // MARK: - Finding a group
 
     @Test("A group is found by its id")
     func findsByID() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let group = try GroupStore(context: context).createGroup(named: "Berlin Trip")
         let id = try #require(group.id)
 
@@ -51,7 +31,7 @@ struct IntentTests {
 
     @Test("A group is found by part of its name, ignoring case")
     func findsByName() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let berlin = try store.createGroup(named: "Berlin Trip")
         try store.createGroup(named: "Ski Weekend")
@@ -66,7 +46,7 @@ struct IntentTests {
     /// older builds wrote other separators.
     @Test("A group is found by its word sequence, however it is written")
     func findsByWordSequence() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let group = try GroupStore(context: context).createGroup(named: "Berlin Trip")
         group.wordSequence = "coral-lotus-pearl"
         try context.save()
@@ -89,7 +69,7 @@ struct IntentTests {
     /// one would pick a group at random out of however many share those words.
     @Test("A partial word sequence finds nothing")
     func partialSequenceFindsNothing() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let group = try GroupStore(context: context).createGroup(named: "Berlin Trip")
         group.wordSequence = "coral-lotus-pearl"
         try context.save()
@@ -99,7 +79,7 @@ struct IntentTests {
 
     @Test("Empty input finds nothing rather than everything")
     func emptyInputFindsNothing() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         try GroupStore(context: context).createGroup(named: "Berlin Trip")
 
         #expect(GroupLookup.groups(matching: "", in: context).isEmpty)
@@ -108,7 +88,7 @@ struct IntentTests {
 
     @Test("Every group is offered newest first")
     func suggestsNewestFirst() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let older = try store.createGroup(named: "Ski Weekend")
         older.creationDate = Date(timeIntervalSince1970: 0)
@@ -123,7 +103,7 @@ struct IntentTests {
 
     @Test("The last opened group survives a round trip and is dropped on delete")
     func lastOpened() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Berlin Trip")
         let id = try #require(group.id)
@@ -143,7 +123,7 @@ struct IntentTests {
     /// asked which one would be asking for the sake of it.
     @Test("With one group and nothing opened yet, that group is the answer")
     func fallsBackToTheOnlyGroup() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let only = try store.createGroup(named: "Berlin Trip")
 
@@ -157,7 +137,7 @@ struct IntentTests {
 
     @Test("Deleting a different group leaves the last opened one alone")
     func lastOpenedSurvivesUnrelatedDelete() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let kept = try store.createGroup(named: "Berlin Trip")
         let doomed = try store.createGroup(named: "Ski Weekend")
@@ -173,7 +153,7 @@ struct IntentTests {
 
     @Test("An expense added by intent is paid by you and split among everyone")
     func addsExpense() async throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Berlin Trip", currencyCode: "EUR")
         let alice = try store.addMember(named: "Alice", to: group)
@@ -205,7 +185,7 @@ struct IntentTests {
     /// refuse and say why.
     @Test("Adding an expense without an identity fails rather than guessing")
     func refusesWithoutIdentity() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Berlin Trip")
         try store.addMember(named: "Alice", to: group)
@@ -219,7 +199,7 @@ struct IntentTests {
 
     @Test("Adding an expense to an empty group fails rather than saving nothing")
     func refusesWithoutMembers() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let group = try GroupStore(context: context).createGroup(named: "Berlin Trip")
 
         #expect(throws: DutchIntentError.self) {

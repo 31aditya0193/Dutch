@@ -4,7 +4,6 @@
 
 import CoreData
 import CloudKit
-import DutchKit
 
 /// Core Data stack backed by `NSPersistentCloudKitContainer`.
 ///
@@ -307,19 +306,5 @@ extension PersistenceController {
             fatalError("Preview sample data is missing its ExpenseGroup.")
         }
         return group
-    }
-}
-
-// MARK: - Background Context
-
-extension PersistenceController {
-    /// Creates a new background context tied to the same container.
-    /// Use this for off-main-thread operations (imports, batch updates).
-    func newBackgroundContext() -> NSManagedObjectContext {
-        let context = container.newBackgroundContext()
-        context.automaticallyMergesChangesFromParent = true
-        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-        context.transactionAuthor = "app"
-        return context
     }
 }

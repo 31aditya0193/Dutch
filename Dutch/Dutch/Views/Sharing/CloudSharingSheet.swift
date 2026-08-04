@@ -14,7 +14,6 @@ import UIKit
 struct CloudSharingSheet: UIViewControllerRepresentable {
     let share: CKShare
     let container: CKContainer
-    let groupName: String
 
     func makeCoordinator() -> Coordinator {
         Coordinator()

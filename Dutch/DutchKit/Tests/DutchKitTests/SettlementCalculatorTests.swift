@@ -25,7 +25,9 @@ private enum Fixture {
             id: UUID(),
             amount: Money(cents: amount),
             payer: payer.id,
-            sharedBetween: Set(sharers.map(\.id))
+            // An even split is a uniform weighting — `[1, 1]` and `[2, 2]` mean
+            // the same thing to `Money.split(among:)`.
+            shares: Dictionary(uniqueKeysWithValues: sharers.map { ($0.id, 1) })
         )
     }
 

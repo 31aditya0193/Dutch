@@ -13,23 +13,6 @@ import Testing
 @Suite("Group appearance")
 struct GroupAppearanceTests {
 
-    private static func makeContext() -> NSManagedObjectContext {
-        let container = NSPersistentContainer(
-            name: "Dutch",
-            managedObjectModel: PersistenceController.managedObjectModel
-        )
-
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        container.persistentStoreDescriptions = [description]
-
-        var loadError: Error?
-        container.loadPersistentStores { _, error in loadError = error }
-        precondition(loadError == nil, "In-memory store failed to load: \(loadError!)")
-
-        return container.viewContext
-    }
-
     // MARK: - Derivation
 
     @Test("The same id always derives the same look")
@@ -77,7 +60,7 @@ struct GroupAppearanceTests {
 
     @Test("A group created without a choice falls back to its derived look")
     func unstyledGroupUsesDerivedLook() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
 
         #expect(group.symbolName == nil)
@@ -87,7 +70,7 @@ struct GroupAppearanceTests {
 
     @Test("A chosen look is stored and read back")
     func chosenLookRoundTrips() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let chosen = GroupAppearance(symbol: .mountains, color: .teal)
         let group = try store.createGroup(named: "Ski", appearance: chosen)
 
@@ -98,7 +81,7 @@ struct GroupAppearanceTests {
 
     @Test("Editing rewrites the name and the look together")
     func updateRewritesNameAndLook() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Trip")
 
         try store.update(group, name: "Kraków", appearance: GroupAppearance(symbol: .wine, color: .pink))
@@ -112,7 +95,7 @@ struct GroupAppearanceTests {
     /// something recognisable instead of an empty tile.
     @Test("An unrecognised stored name falls back rather than rendering nothing")
     func unknownNamesFallBack() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Berlin Trip")
 

@@ -16,29 +16,6 @@ import Testing
 @Suite("GroupStore")
 struct GroupStoreTests {
 
-    /// A fresh, isolated in-memory stack per test so they don't share state.
-    ///
-    /// Plain `NSPersistentContainer`, not the CloudKit one — these tests are
-    /// about the data model and settlement bridge, and mirroring would only
-    /// add an iCloud account dependency. The model is found in the app bundle,
-    /// which is the test host.
-    private static func makeContext() -> NSManagedObjectContext {
-        let container = NSPersistentContainer(
-            name: "Dutch",
-            managedObjectModel: PersistenceController.managedObjectModel
-        )
-
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        container.persistentStoreDescriptions = [description]
-
-        var loadError: Error?
-        container.loadPersistentStores { _, error in loadError = error }
-        precondition(loadError == nil, "In-memory store failed to load: \(loadError!)")
-
-        return container.viewContext
-    }
-
     /// A UUID whose sort position is its leading byte.
     ///
     /// For the one thing in the settlement that depends on the order ids happen
@@ -55,7 +32,7 @@ struct GroupStoreTests {
 
     @Test("Creating a group assigns an id, date and word sequence")
     func createGroup() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
 
         #expect(group.name == "Berlin Trip")
@@ -68,7 +45,7 @@ struct GroupStoreTests {
 
     @Test("Members attach to their group")
     func addMembers() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
 
         try store.addMember(named: "Alice", to: group)
@@ -80,7 +57,7 @@ struct GroupStoreTests {
 
     @Test("Deleting a group cascades to its members and expenses")
     func deleteCascades() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
@@ -101,7 +78,7 @@ struct GroupStoreTests {
 
     @Test("A new group records the currency it was created in")
     func createGroupPinsCurrency() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip", currencyCode: "EUR")
 
         #expect(group.currencyCode == "EUR")
@@ -112,7 +89,7 @@ struct GroupStoreTests {
     /// rather than rendering nothing.
     @Test("A group with no stored currency falls back to the locale")
     func currencyFallsBack() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         group.currencyCode = nil
 
@@ -123,7 +100,7 @@ struct GroupStoreTests {
 
     @Test("Deleting an expense removes it from the balances")
     func deleteExpense() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
@@ -150,7 +127,7 @@ struct GroupStoreTests {
     /// split without ever appearing as a deletion.
     @Test("Deleting a member also deletes the expenses they paid for")
     func deleteMemberRemovesTheirExpenses() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
@@ -186,7 +163,7 @@ struct GroupStoreTests {
 
     @Test("Total spent adds up every expense regardless of who paid")
     func totalSpent() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -206,7 +183,7 @@ struct GroupStoreTests {
 
     @Test("A group with no expenses reads as settled")
     func emptyGroupIsSettled() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         try store.addMember(named: "Alice", to: group)
 
@@ -218,7 +195,7 @@ struct GroupStoreTests {
 
     @Test("A split expense produces the balances the detail screen shows")
     func balancesAfterExpense() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -243,7 +220,7 @@ struct GroupStoreTests {
 
     @Test("The settle-up list points from the debtor to the payer")
     func transfersAfterExpense() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -267,7 +244,7 @@ struct GroupStoreTests {
     /// the split is covering the cost for others and is owed all of it.
     @Test("Paying on someone else's behalf is recorded in full")
     func payerExcludedFromSplit() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -286,7 +263,7 @@ struct GroupStoreTests {
 
     @Test("A group with no expenses still lists its members at zero")
     func emptyGroupBalances() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         try store.addMember(named: "Alice", to: group)
         try store.addMember(named: "Bob", to: group)
@@ -302,7 +279,7 @@ struct GroupStoreTests {
 
     @Test("Editing an expense rewrites it in place rather than replacing it")
     func updateKeepsOneRecord() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
@@ -340,7 +317,7 @@ struct GroupStoreTests {
     /// today, which would reshuffle the list under the user.
     @Test("Editing leaves the original date alone")
     func updateKeepsTheDate() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
 
@@ -365,7 +342,7 @@ struct GroupStoreTests {
     /// expense that no longer has one.
     @Test("Editing away a foreign currency clears its provenance")
     func updateClearsForeignProvenance() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Kraków", currencyCode: "EUR")
         let alice = try store.addMember(named: "Alice", to: group)
 
@@ -390,7 +367,7 @@ struct GroupStoreTests {
 
     @Test("Shares divide an expense unevenly through the bridge")
     func weightedSplit() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -430,7 +407,7 @@ struct GroupStoreTests {
     /// Only a test that draws new ids on each run sees the tie move.
     @Test("A discounted fare divides correctly end to end")
     func discountedFareThroughTheStore() throws {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let store = GroupStore(context: context)
         let group = try store.createGroup(named: "Trzcińsko", currencyCode: "PLN")
 
@@ -488,7 +465,7 @@ struct GroupStoreTests {
     /// which is what a client on the old model will read it as.
     @Test("A uniform weighting is stored as no weighting at all")
     func uniformWeightsAreNotStored() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -512,7 +489,7 @@ struct GroupStoreTests {
     /// nowhere if they were ever added to the expense again.
     @Test("Weights for members dropped from the split are discarded")
     func weightsAreScopedToTheSplit() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -540,7 +517,7 @@ struct GroupStoreTests {
     /// concept of settling at all.
     @Test("Recording a payment settles the debt it was suggested for")
     func recordPaymentSettles() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -563,7 +540,7 @@ struct GroupStoreTests {
     /// spending would inflate the trip's total every time anyone settled up.
     @Test("A payment is not spending")
     func paymentIsNotSpending() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -583,7 +560,7 @@ struct GroupStoreTests {
 
     @Test("Deleting a payment puts the debt back")
     func deletingPaymentRestoresDebt() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)
@@ -606,7 +583,7 @@ struct GroupStoreTests {
 
     @Test("Amounts entered in major units survive the round trip to cents")
     func amountRoundTrip() throws {
-        let store = GroupStore(context: Self.makeContext())
+        let store = GroupStore(context: TestStack.makeContext())
         let group = try store.createGroup(named: "Berlin Trip")
         let alice = try store.addMember(named: "Alice", to: group)
         let bob = try store.addMember(named: "Bob", to: group)

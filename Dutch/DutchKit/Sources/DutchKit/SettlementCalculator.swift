@@ -36,26 +36,12 @@ public struct ExpenseEntry: Hashable, Sendable {
     /// calculator never adds the payer implicitly.
     public let shares: [Participant.ID: Int]
 
-    /// Everyone the cost is divided between, regardless of how much each takes.
-    public var sharedBetween: Set<Participant.ID> { Set(shares.keys) }
-
-    /// An even split between `sharedBetween`.
-    public init(
-        id: UUID,
-        amount: Money,
-        payer: Participant.ID,
-        sharedBetween: Set<Participant.ID>
-    ) {
-        self.init(
-            id: id,
-            amount: amount,
-            payer: payer,
-            shares: Dictionary(uniqueKeysWithValues: sharedBetween.map { ($0, 1) })
-        )
-    }
-
     /// A weighted split. Participants with a non-positive weight are not in the
     /// split at all — see `Money.split(among:)`.
+    ///
+    /// There is no separate even-split initialiser, because an even split is
+    /// not a separate case: a uniform weighting *is* one, and giving it its own
+    /// entry point would mean two ways to say the same thing.
     public init(
         id: UUID,
         amount: Money,

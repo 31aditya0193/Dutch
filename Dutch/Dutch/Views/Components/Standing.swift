@@ -31,14 +31,6 @@ enum Standing: Equatable {
         self = balance < .zero ? .owes(balance.magnitude) : .isOwed(balance)
     }
 
-    /// The amount at stake, or `nil` when nothing is.
-    var amount: Money? {
-        switch self {
-        case .owes(let amount), .isOwed(let amount): amount
-        case .settled: nil
-        }
-    }
-
     var tint: Color {
         switch self {
         case .owes: .red

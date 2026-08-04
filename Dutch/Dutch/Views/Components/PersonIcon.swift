@@ -59,16 +59,20 @@ struct PersonIcon: View {
 }
 
 #Preview {
+    // Real names through the real parser rather than initials typed out by
+    // hand, so the preview shows what the app will — two initials, one, a
+    // non-Latin script, a particle surname, and the no-name fallback. `zip`
+    // truncates, so growing the palette can't index past the end.
+    let names: [String?] = [
+        "Anna Kowalska", "Bruno", "山田太郎", "Ada van der Berg",
+        nil, "Émile Zola", "Wei Wu", "🎉",
+    ]
+
     List {
-        ForEach(Array(PaletteColor.allCases.enumerated()), id: \.offset) { index, color in
+        ForEach(Array(zip(names, PaletteColor.allCases)), id: \.1) { name, color in
             HStack(spacing: 12) {
-                PersonIcon(
-                    PersonAvatar(
-                        initials: ["AK", "B", "MŚ", "山田", "WM", nil, "JJ", "ZZ"][index],
-                        color: color
-                    )
-                )
-                Text(color.label)
+                PersonIcon(PersonAvatar(initials: PersonAvatar.initials(from: name), color: color))
+                Text(name ?? "No name")
             }
         }
     }

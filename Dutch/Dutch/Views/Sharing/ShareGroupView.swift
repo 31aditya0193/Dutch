@@ -151,11 +151,7 @@ struct ShareGroupView: View {
             .padding(.top, 24)
         }
         .sheet(isPresented: $showingInviteSheet) {
-            CloudSharingSheet(
-                share: share,
-                container: container,
-                groupName: group.name ?? "Expense Group"
-            )
+            CloudSharingSheet(share: share, container: container)
             .ignoresSafeArea()
         }
     }

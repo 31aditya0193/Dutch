@@ -14,23 +14,6 @@ import Testing
 @Suite("Person avatars")
 struct PersonAvatarTests {
 
-    private static func makeContext() -> NSManagedObjectContext {
-        let container = NSPersistentContainer(
-            name: "Dutch",
-            managedObjectModel: PersistenceController.managedObjectModel
-        )
-
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        container.persistentStoreDescriptions = [description]
-
-        var loadError: Error?
-        container.loadPersistentStores { _, error in loadError = error }
-        precondition(loadError == nil, "In-memory store failed to load: \(loadError!)")
-
-        return container.viewContext
-    }
-
     @discardableResult
     private static func makePerson(
         _ name: String?,
@@ -106,7 +89,7 @@ struct PersonAvatarTests {
 
     @Test("No two members of a group share a colour")
     func rosterColoursAreDistinct() {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let members = (0..<PaletteColor.allCases.count).map { index in
             Self.makePerson("Member \(index)", in: context)
         }
@@ -122,7 +105,7 @@ struct PersonAvatarTests {
     /// each member picks independently.
     @Test("Colours stay distinct across many random rosters")
     func rosterColoursAreDistinctRepeatedly() {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
 
         for _ in 0..<200 {
             let members = (0..<4).map { Self.makePerson("Member \($0)", in: context) }
@@ -135,7 +118,7 @@ struct PersonAvatarTests {
     /// name-sorted one the screens fetch: a rename must not repaint the group.
     @Test("Renaming a member leaves everyone's colour alone")
     func renamingDoesNotRepaintTheRoster() {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let members = (0..<5).map { Self.makePerson("Member \($0)", in: context) }
 
         let before = RosterAvatars(members)
@@ -153,7 +136,7 @@ struct PersonAvatarTests {
     /// The colours have to come out the same anyway.
     @Test("Roster order does not change the assignment")
     func rosterOrderDoesNotMatter() {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let members = (0..<6).map { Self.makePerson("Member \($0)", in: context) }
 
         let forward = RosterAvatars(members)
@@ -168,7 +151,7 @@ struct PersonAvatarTests {
     /// do is hand everyone after the eighth the same colour.
     @Test("A roster larger than the palette cycles instead of collapsing")
     func oversizedRosterCycles() {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let size = PaletteColor.allCases.count + 3
         let members = (0..<size).map { Self.makePerson("Member \($0)", in: context) }
 
@@ -186,7 +169,7 @@ struct PersonAvatarTests {
     /// must still draw, rather than falling through to nothing.
     @Test("A member outside the roster still gets an avatar")
     func strangerStillGetsAnAvatar() {
-        let context = Self.makeContext()
+        let context = TestStack.makeContext()
         let known = Self.makePerson("Anna Kowalska", in: context)
         let stranger = Self.makePerson("Bruno Nowak", in: context)
 

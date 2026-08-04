@@ -91,20 +91,6 @@ extension PaletteColor {
         return allCases[Int(sum % UInt64(allCases.count))]
     }
 
-    /// This colour if it is free, otherwise the next free one round the palette.
-    ///
-    /// Walking forward rather than taking any free colour is what makes the
-    /// result reproducible: every device runs the same walk over the same order
-    /// and lands on the same answer.
-    static func firstFree(from preferred: PaletteColor, excluding taken: Set<PaletteColor>) -> PaletteColor {
-        guard let start = allCases.firstIndex(of: preferred) else { return preferred }
-
-        for offset in 0..<allCases.count {
-            let candidate = allCases[(start + offset) % allCases.count]
-            if !taken.contains(candidate) { return candidate }
-        }
-        return preferred
-    }
 }
 
 // MARK: - Roster
@@ -132,6 +118,7 @@ struct RosterAvatars {
         // everyone who sorts after them, and two devices whose locales collate
         // differently would draw the same group two ways.
         let ordered = members.sorted { ($0.id?.uuidString ?? "") < ($1.id?.uuidString ?? "") }
+        let palette = PaletteColor.allCases
 
         var taken: Set<PaletteColor> = []
         for member in ordered {
@@ -139,12 +126,18 @@ struct RosterAvatars {
             // more than eight is already past the point where colour is doing
             // much work, and repeating beats handing everyone after the eighth
             // the same grey.
-            if taken.count == PaletteColor.allCases.count { taken.removeAll() }
+            if taken.count == palette.count { taken.removeAll() }
 
-            let color = PaletteColor.firstFree(
-                from: .derived(from: member.id),
-                excluding: taken
-            )
+            // Their own colour if it is free, otherwise the next one round the
+            // palette. Walking forward rather than taking any free colour is
+            // what keeps this reproducible: every device runs the same walk
+            // over the same order and lands on the same answer.
+            let start = palette.firstIndex(of: .derived(from: member.id)) ?? 0
+            let color = palette.indices
+                .lazy
+                .map { palette[(start + $0) % palette.count] }
+                .first { !taken.contains($0) } ?? palette[start]
+
             colors[member.objectID] = color
             taken.insert(color)
         }
