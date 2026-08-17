@@ -52,6 +52,7 @@ struct GroupListView: View {
     @State private var path: [ExpenseGroup] = []
     @State private var showingNewGroup = false
     @State private var showingJoinGroup = false
+    @State private var showingSettings = false
     @State private var errorMessage: String?
 
     /// Set with `reachedLimit` when a create was blocked, and without it when
@@ -154,6 +155,17 @@ struct GroupListView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     SyncStatusIndicator()
                 }
+                // Trailing rather than leading, and before the primary action
+                // so the button somebody came to tap keeps the edge. Settings
+                // is a place people go looking for deliberately; it does not
+                // need to be the easiest thing to hit.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: requestNewGroup) {
                         Label("New Group", systemImage: "plus")
@@ -165,6 +177,9 @@ struct GroupListView: View {
             }
             .sheet(isPresented: $showingJoinGroup) {
                 JoinGroupView()
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
             }
             .sheet(item: $paywallReason, onDismiss: resumeBlockedCreate) { reason in
                 PaywallView(reachedLimit: reason == .blocked)

@@ -49,6 +49,7 @@ how few payments would clear it.**
 | **"You owe", not your name** | Tell the app which member you are and it speaks in the second person. Kept on the device, never synced. |
 | **Siri and Shortcuts** | "Add an expense to Berlin Trip." Ask Siri what you owe, or build the app into a Shortcut of your own. |
 | **Spotlight and quick actions** | Search your groups from the Home Screen, or long-press the icon to add an expense to the one you were last in. |
+| **Told when it changes** | Optional notifications when somebody else adds an expense, so checking the balance isn't something you have to remember to do. Off until you turn them on. |
 | **Fully offline** | Everything is written to Core Data locally and syncs when the device reconnects. |
 
 Where the app is going next, and what it deliberately won't do, is in
@@ -95,6 +96,28 @@ by us.
 **In short:** the source of truth is distributed across the users' own iCloud
 spaces, mediated by CloudKit — serverless by design.
 
+### Why notifications are *local*
+
+Having no server has one honest cost, and this is it. A normal app's push
+notification is composed and sent by its backend; Dutch has no backend to send
+one. So a notification here is **composed by your own phone**, about data it has
+already downloaded:
+
+CloudKit wakes the app with a silent push → `NSPersistentCloudKitContainer`
+imports → Core Data's persistent history says *what* arrived → the app posts a
+local notification for the expenses somebody else added.
+
+The banner arrives without you opening the app, which is the point. But it is
+best-effort by construction, and the app says so rather than pretending
+otherwise: iOS decides when to deliver a silent push, delays them in Low Power
+Mode, and **delivers none at all to an app you have force-quit**. Turning off
+Background App Refresh for Dutch stops them too. Opening the app always shows
+the truth.
+
+Expenses you entered yourself are filtered out — including the ones that arrive
+from your own second device — so the only thing that interrupts you is somebody
+else spending money.
+
 ### Why there are two persistent stores
 
 `PersistenceController` loads **two** stores against the same model, and both are
@@ -128,6 +151,8 @@ no remote Swift packages. Everything is built on official Apple frameworks.
 | **StoreKit 2** | The one in-app purchase. |
 | **App Intents** | Siri, Shortcuts and the Home Screen quick action. |
 | **Core Spotlight** | Making groups searchable from the Home Screen. |
+| **UserNotifications** | Local notifications about expenses that arrived from other people. |
+| `NSPersistentHistoryTransaction` | Working out *what* a CloudKit import brought down, while the app is in the background. |
 | `CoreImage` | Generating QR codes from share URLs. |
 | `AVFoundation` | Scanning QR codes with the device camera. |
 | **Swift Testing** | Unit tests (`@Test` / `@Suite`); UI tests use XCTest. |
@@ -187,7 +212,7 @@ Dutch/                              # repository root
     │   ├── Models/
     │   │   ├── CoreData/
     │   │   │   ├── PersistenceController.swift  # private + shared CloudKit stores
-    │   │   │   └── Dutch.xcdatamodeld           # ExpenseGroup, Person, Expense (v4)
+    │   │   │   └── Dutch.xcdatamodeld           # ExpenseGroup, Person, Expense (v6)
     │   │   └── DTO/
     │   │       └── SettlementBridge.swift       # Core Data ↔ DutchKit
     │   ├── Views/
@@ -196,7 +221,8 @@ Dutch/                              # repository root
     │   │   ├── Sharing/                   # ShareGroupView, JoinGroupView,
     │   │   │                              # QRScannerView, CloudSharingSheet
     │   │   ├── Purchase/                  # PaywallView
-    │   │   └── Components/                # GroupIcon, Standing, SyncStatusFooter, …
+    │   │   ├── Settings/                  # SettingsView (notifications + about)
+    │   │   └── Components/                # GroupIcon, Standing, SyncStatusIndicator, …
     │   ├── Services/
     │   │   ├── CloudSharingService.swift  # creating and accepting CKShares
     │   │   ├── CloudSyncMonitor.swift     # surfacing mirroring failures to the UI
@@ -204,6 +230,8 @@ Dutch/                              # repository root
     │   │   ├── GroupLimit.swift           # the free tier's one-created-group rule
     │   │   ├── PurchaseStore.swift        # StoreKit 2 entitlement
     │   │   ├── ExpenseDefaults.swift      # per-group state local to this device
+    │   │   ├── CloudIdentity.swift        # which iCloud account this device is
+    │   │   ├── ExpenseNotifier.swift      # local notifications for imported expenses
     │   │   ├── SpotlightIndexer.swift
     │   │   └── QRCodeGenerator.swift
     │   └── Intents/                       # App Intents, self-contained on purpose

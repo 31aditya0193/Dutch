@@ -6,13 +6,5 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
-	<!-- No UIApplicationShortcutItems here, deliberately. The quick action is
-	     registered at runtime by DutchApp.refreshQuickActions() so it can name
-	     the group it will open.
-
-	     A static twin is not a fallback for that, it is a duplicate: the system
-	     shows the static list *and* the dynamic one, and setting
-	     UIApplication.shortcutItems never replaces the plist entry. With both
-	     defined the menu carried two "New Expense" rows doing the same thing. -->
 </dict>
 </plist>

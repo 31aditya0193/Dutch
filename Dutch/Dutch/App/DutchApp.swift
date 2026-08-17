@@ -34,6 +34,14 @@ struct DutchApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         Task { await CloudIdentity.refresh() }
+                        // For the same reason, and with a sharper edge: the
+                        // settings screen's only remedy for a denied permission
+                        // is a link into Settings.app, so returning from the
+                        // background is precisely when the answer has changed.
+                        // Without this the app would still believe it was
+                        // refused, and the toggle the user had just come back
+                        // to flip would stay disabled.
+                        Task { await ExpenseNotifier.shared.refreshAuthorization() }
                     }
                 }
         }
@@ -117,9 +125,43 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // and because this is already where launch-time registration lives.
         MainActor.assumeIsolated {
             SpotlightIndexer.shared.start(reading: PersistenceController.shared.viewContext)
+
+            // Must be before launch finishes, not merely early: a notification
+            // tapped while the app was not running is delivered as part of
+            // launch, and a `UNUserNotificationCenter` delegate assigned any
+            // later never hears about it. See `ExpenseNotifier.start`.
+            ExpenseNotifier.shared.start()
         }
 
         return true
+    }
+
+    /// Holds the process open while the import a silent push triggered runs.
+    ///
+    /// The container handles the push itself and needs nothing from here — but
+    /// without an implementation of this method the app has no background
+    /// execution assertion, so iOS suspends it again the moment the push is
+    /// delivered and the import finishes on some later launch instead. That is
+    /// invisible while the only consumer of an import is the UI, and fatal to
+    /// `ExpenseNotifier`, which exists to say something while nobody is
+    /// looking at the UI.
+    ///
+    /// The completion handler must be called, and is, on both paths.
+    ///
+    /// The completion-handler form rather than the `async` one, and
+    /// `nonisolated`, so that the untyped `userInfo` — which this reads nothing
+    /// from, because the container owns the push's contents — is never sent
+    /// across an actor boundary. The `async` spelling of the same method makes
+    /// exactly that crossing, and is a hard error under Swift 6.
+    nonisolated func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        Task {
+            let result = await ExpenseNotifier.shared.handleRemotePush()
+            await MainActor.run { completionHandler(result) }
+        }
     }
 
     /// Routes scene creation through `SceneDelegate` so share invitations can
