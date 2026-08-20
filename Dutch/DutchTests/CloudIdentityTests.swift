@@ -50,7 +50,7 @@ struct CloudIdentityTests {
         let context = TestStack.makeContext()
         let (group, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
 
-        try Self.withIdentity("_abc123") {
+        Self.withIdentity("_abc123") {
             members[1].cloudUserRecordName = "_abc123"
 
             #expect(CloudIdentity.isMe(members[1]))
@@ -68,7 +68,7 @@ struct CloudIdentityTests {
         let (group, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
         ExpenseDefaults.rememberMe(nil, in: group)
 
-        try Self.withIdentity("_abc123") {
+        Self.withIdentity("_abc123") {
             members[0].cloudUserRecordName = "_abc123"
             #expect(ExpenseDefaults.me(in: group, among: members) == members[0])
         }
@@ -79,7 +79,7 @@ struct CloudIdentityTests {
         let context = TestStack.makeContext()
         let (_, members) = try Self.makeGroup(members: ["Ala"], in: context)
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             members[0].cloudUserRecordName = "_theirs"
 
             #expect(!CloudIdentity.isMe(members[0]))
@@ -92,7 +92,7 @@ struct CloudIdentityTests {
         let context = TestStack.makeContext()
         let (_, members) = try Self.makeGroup(members: ["Ala"], in: context)
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             #expect(!CloudIdentity.isMe(members[0]))
             #expect(!CloudIdentity.isSomeoneElse(members[0]))
         }
@@ -105,7 +105,7 @@ struct CloudIdentityTests {
         let context = TestStack.makeContext()
         let (_, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
 
-        try Self.withIdentity(nil) {
+        Self.withIdentity(nil) {
             members[0].cloudUserRecordName = "_abc123"
 
             #expect(!CloudIdentity.isMe(members[0]))
@@ -127,7 +127,7 @@ struct CloudIdentityTests {
         let (group, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
         ExpenseDefaults.rememberMe(members[0], in: group)
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             #expect(ExpenseDefaults.me(in: group, among: members) == members[0])
 
             members[0].cloudUserRecordName = "_theirs"
@@ -141,7 +141,7 @@ struct CloudIdentityTests {
         let (group, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
         ExpenseDefaults.rememberMe(members[0], in: group)
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             members[1].cloudUserRecordName = "_mine"
             #expect(ExpenseDefaults.me(in: group, among: members) == members[1])
         }
@@ -155,7 +155,7 @@ struct CloudIdentityTests {
         let (group, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
         ExpenseDefaults.rememberMe(members[1], in: group)
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             #expect(ExpenseDefaults.me(in: group, among: members) == members[1])
         }
     }
@@ -229,7 +229,7 @@ struct CloudIdentityTests {
         let context = TestStack.makeContext()
         let (_, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             #expect(CloudIdentity.unmatchedRecordNames(["_theirs"], against: members) == ["_theirs"])
         }
     }
@@ -240,7 +240,7 @@ struct CloudIdentityTests {
         let (_, members) = try Self.makeGroup(members: ["Ala", "Bartek"], in: context)
         members[1].cloudUserRecordName = "_theirs"
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             #expect(CloudIdentity.unmatchedRecordNames(["_theirs"], against: members).isEmpty)
         }
     }
@@ -253,7 +253,7 @@ struct CloudIdentityTests {
         let (_, members) = try Self.makeGroup(members: ["Ala"], in: context)
         if hasClaimed { members[0].cloudUserRecordName = "_mine" }
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             #expect(CloudIdentity.unmatchedRecordNames(["_mine"], against: members).isEmpty)
         }
     }
@@ -264,7 +264,7 @@ struct CloudIdentityTests {
         let (_, members) = try Self.makeGroup(members: ["Ala", "Bartek", "Celina"], in: context)
         members[0].cloudUserRecordName = "_one"
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             let unmatched = CloudIdentity.unmatchedRecordNames(
                 ["_one", "_two", "_mine", "_three"],
                 against: members
@@ -280,7 +280,7 @@ struct CloudIdentityTests {
         let context = TestStack.makeContext()
         let (_, members) = try Self.makeGroup(members: ["Ala"], in: context)
 
-        try Self.withIdentity("_mine") {
+        Self.withIdentity("_mine") {
             #expect(CloudIdentity.unmatchedRecordNames([], against: members).isEmpty)
         }
     }
