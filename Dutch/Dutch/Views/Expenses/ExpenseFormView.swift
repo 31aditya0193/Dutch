@@ -74,7 +74,15 @@ struct ExpenseFormView: View {
     @State private var customTarget: Person?
     @State private var customText = ""
     @State private var errorMessage: String?
-    @FocusState private var titleFocused: Bool
+    @FocusState private var amountFocused: Bool
+
+    /// The foreign currencies this group has already spent in, newest first.
+    ///
+    /// Read once at construction rather than per render: the picker's option
+    /// list is rebuilt on every keystroke in the amount field, and this would
+    /// otherwise hit `UserDefaults` each time for a value that cannot change
+    /// while the form is open.
+    private let recentCurrencies: [String]
 
     /// A new expense, with every selection seeded from the state the form would
     /// otherwise make the user re-enter on each one.
@@ -102,6 +110,7 @@ struct ExpenseFormView: View {
         let currency = ExpenseDefaults.lastCurrency(in: group) ?? group.currency
         _currencyCode = State(initialValue: currency)
         _rateText = State(initialValue: Self.rateText(for: currency, in: group))
+        self.recentCurrencies = ExpenseDefaults.recentCurrencies(in: group)
     }
 
     /// An existing expense, seeded from what was recorded rather than from the
@@ -157,6 +166,7 @@ struct ExpenseFormView: View {
         let weights = expense.shareWeights
         _splitsEvenly = State(initialValue: weights.isEmpty)
         _shares = State(initialValue: Self.shares(from: weights, in: group))
+        self.recentCurrencies = ExpenseDefaults.recentCurrencies(in: group)
     }
 
     // MARK: - Seeding
@@ -287,10 +297,16 @@ struct ExpenseFormView: View {
             }
             .errorBanner($errorMessage)
             .task {
+                // The amount, not the title. The amount is the one field this
+                // screen cannot be saved without, and it raises the decimal pad
+                // — where starting in the title raised a full keyboard on a
+                // form whose entire purpose is a number, and asked for the one
+                // thing that is now optional.
+                //
                 // Only on a blank form. Opening the keyboard on an edit — or on
-                // a duplicate — puts a cursor in a title the user most likely
+                // a duplicate — puts a cursor in a figure the user most likely
                 // came to keep.
-                titleFocused = !isEditing && !isDuplicate
+                amountFocused = !isEditing && !isDuplicate
             }
         }
     }
@@ -299,9 +315,14 @@ struct ExpenseFormView: View {
 
     private var detailsSection: some View {
         Section {
-            TextField("Title", text: $title)
-                .focused($titleFocused)
+            // Named as optional in the placeholder, because nothing else on
+            // screen says so: Save stays enabled with it blank, and a field
+            // people believe is required is one they stop to fill in.
+            TextField("Title (optional)", text: $title)
                 .submitLabel(.next)
+                // Pinned, so the placeholder above is free to change wording
+                // without breaking the UI tests that reach for this field.
+                .accessibilityIdentifier("Title")
 
             amountRow
             currencyRow
@@ -329,6 +350,7 @@ struct ExpenseFormView: View {
             Spacer(minLength: 12)
 
             TextField("0", text: $amountText)
+                .focused($amountFocused)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .font(.body.monospacedDigit())
@@ -349,13 +371,19 @@ struct ExpenseFormView: View {
     /// Lets an expense be entered in whatever was actually handed over, which
     /// on a trip through two countries is not the currency the group settles in.
     private var currencyRow: some View {
-        Picker("Currency", selection: $currencyCode) {
-            ForEach(currencyOptions, id: \.self) { code in
-                Text(Self.currencyLabel(code)).tag(code)
-            }
+        NavigationLink {
+            CurrencyPicker(
+                selection: $currencyCode,
+                inUse: inUseCurrencies,
+                all: Locale.commonISOCurrencyCodes
+            )
+        } label: {
+            // The code alone, not the code and its name. This is a row in a
+            // form, and "PLN · Polish Zloty" trailing a label pushes the two
+            // into a wrap at accessibility text sizes for a word the user just
+            // chose and already knows.
+            LabeledContent("Currency", value: currencyCode)
         }
-        // A menu of ~150 currencies is unusable; this pushes a list instead.
-        .pickerStyle(.navigationLink)
     }
 
     /// Only meaningful when the money wasn't the group's own currency, so it
@@ -589,7 +617,7 @@ struct ExpenseFormView: View {
     /// Built once — `commonISOCurrencyCodes` is ~150 entries and looking up a
     /// localized name per row per render would redo that work on every keystroke
     /// in the amount field.
-    private static let currencyNames: [String: String] = {
+    fileprivate static let currencyNames: [String: String] = {
         let locale = Locale.current
         return Dictionary(
             uniqueKeysWithValues: Locale.commonISOCurrencyCodes.compactMap { code in
@@ -598,21 +626,24 @@ struct ExpenseFormView: View {
         )
     }()
 
-    private static func currencyLabel(_ code: String) -> String {
+    fileprivate static func currencyLabel(_ code: String) -> String {
         guard let name = currencyNames[code] else { return code }
         return "\(code) · \(name)"
     }
 
-    /// The group's own currency first, then whatever is currently selected,
-    /// then everything else — so the two codes actually in play on a trip sit
-    /// at the top instead of being hunted for alphabetically.
+    /// The codes actually in play in this group: its own first, then whatever
+    /// is selected, then the foreign currencies it has already spent in.
     ///
-    /// The selection is included explicitly so a code that isn't in the common
-    /// list still has a row to match, which is what a `Picker` needs to display
-    /// it at all.
-    private var currencyOptions: [String] {
+    /// These get a section of their own above the full list rather than merely
+    /// being sorted to the top of it — a run of familiar codes with no heading
+    /// over it reads as the alphabet having gone wrong.
+    ///
+    /// The selection is included explicitly so a code outside
+    /// `commonISOCurrencyCodes`, which is not the whole ISO register, still has
+    /// a row of its own to show its tick on.
+    private var inUseCurrencies: [String] {
         var seen = Set<String>()
-        return ([group.currency, currencyCode] + Locale.commonISOCurrencyCodes)
+        return ([group.currency, currencyCode] + recentCurrencies)
             .filter { seen.insert($0).inserted }
     }
 
@@ -665,9 +696,16 @@ struct ExpenseFormView: View {
         return "\(stored) · \(foreign.formatted()) at \(rate)"
     }
 
+    /// A title is deliberately not required.
+    ///
+    /// What an expense has to have is a figure, somebody who paid it and
+    /// somebody it is split between — those three are what a balance is made
+    /// of, and a title is a label on top of them. Requiring one meant standing
+    /// at a bar typing "Beer" before the app would accept the number, and the
+    /// list already reads fine without it: `ExpenseRow` leads an untitled row
+    /// with the payer instead.
     private var isValid: Bool {
-        !title.trimmingCharacters(in: .whitespaces).isEmpty
-            && finalAmount != nil
+        finalAmount != nil
             && selectedPayer != nil
             && !selectedParticipants.isEmpty
     }
@@ -717,6 +755,10 @@ struct ExpenseFormView: View {
         ExpenseDefaults.rememberPayer(payer, in: group)
         if let foreign {
             ExpenseDefaults.remember(foreign, in: group)
+            // Only the foreign ones. The group's own currency is pinned to the
+            // top of the picker whatever happens, so recording it here would
+            // spend one of four slots on the one code that cannot go missing.
+            ExpenseDefaults.rememberUsed(foreign.currencyCode, in: group)
         } else {
             ExpenseDefaults.rememberHomeCurrency(in: group)
         }
@@ -870,6 +912,85 @@ private struct MemberSplitRow: View {
                 .accessibilityLabel("Share for \(name)")
                 .accessibilityValue("\(share) percent of a full share")
             }
+        }
+    }
+}
+
+// MARK: - Currency Picker
+
+/// The currency list, as a screen of its own rather than a `Picker`.
+///
+/// `.pickerStyle(.navigationLink)` pushes a list that cannot be searched, and
+/// this one is ~150 rows: reaching HUF meant scrolling past a hundred codes
+/// nobody on the trip will ever spend. Search is the entire reason this is
+/// hand-rolled, and it matches the localized name as readily as the code —
+/// somebody hunting for forint does not necessarily know it is HUF.
+private struct CurrencyPicker: View {
+    @Binding var selection: String
+    /// The group's own currency, the selection, and whatever this trip has
+    /// already spent in — see `ExpenseFormView.inUseCurrencies`.
+    let inUse: [String]
+    let all: [String]
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    var body: some View {
+        List {
+            let used = matches(inUse)
+            if !used.isEmpty {
+                Section("Used in This Group") {
+                    ForEach(used, id: \.self, content: row)
+                }
+            }
+
+            // The full list stays full, including the codes repeated above.
+            // Filtering them out would make the alphabet skip entries for
+            // reasons invisible to somebody scrolling it, and a duplicated tick
+            // in two sections is the ordinary shape of a suggestions list.
+            Section("All Currencies") {
+                ForEach(matches(all), id: \.self, content: row)
+            }
+        }
+        .searchable(text: $query, prompt: "Code or name")
+        .navigationTitle("Currency")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// A row, not a `Picker` tag: choosing a currency should close the screen
+    /// the way a picker's own list does, and a plain selection binding would
+    /// leave the user to find Back for themselves.
+    private func row(_ code: String) -> some View {
+        Button {
+            selection = code
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                Text(ExpenseFormView.currencyLabel(code))
+                    .foregroundStyle(.primary)
+
+                Spacer(minLength: 12)
+
+                if code == selection {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.tint)
+                        // The trait below says this to VoiceOver already.
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityAddTraits(code == selection ? [.isSelected] : [])
+    }
+
+    /// Matches on the whole label, so "zloty", "PLN" and "Polish" all find the
+    /// same row.
+    private func matches(_ codes: [String]) -> [String] {
+        let term = query.trimmingCharacters(in: .whitespaces)
+        guard !term.isEmpty else { return codes }
+
+        return codes.filter {
+            ExpenseFormView.currencyLabel($0).localizedCaseInsensitiveContains(term)
         }
     }
 }

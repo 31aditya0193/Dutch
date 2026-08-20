@@ -109,17 +109,38 @@ struct GroupDetailView: View {
                 }
 
                 Button {
-                    showingAddExpense = true
-                } label: {
-                    Label("Add Expense", systemImage: "plus.circle")
-                }
-                .disabled(contents.members.isEmpty)
-
-                Button {
                     showingShareSheet = true
                 } label: {
                     Label("Share Group", systemImage: "square.and.arrow.up")
                 }
+            }
+
+            // Adding an expense is the one thing on this screen anybody does
+            // more than once a trip, and in the top-right corner it was the
+            // furthest point on a 6.9" phone from the thumb holding it. The
+            // other two are once-per-trip and stay where they were: moving the
+            // whole toolbar down would just relocate the problem and cost the
+            // grouping that says which of the three is the point.
+            //
+            // Spaced to the centre rather than left in the leading slot, where
+            // a lone bottom-bar item sits under the same thumb that just
+            // reached past it.
+            ToolbarItemGroup(placement: .bottomBar) {
+                Spacer()
+
+                Button {
+                    showingAddExpense = true
+                } label: {
+                    Label("Add Expense", systemImage: "plus.circle.fill")
+                }
+                // Titled as well as drawn. A bare glyph in a bar with nothing
+                // else in it has no neighbours to be understood against, and
+                // this is the action the screen exists to offer.
+                .labelStyle(.titleAndIcon)
+                .font(.body.weight(.medium))
+                .disabled(contents.members.isEmpty)
+
+                Spacer()
             }
         }
         .sheet(isPresented: $showingAddExpense) {
@@ -429,6 +450,26 @@ struct GroupDetailView: View {
         // expenses open the form.
         if expense.isReimbursement {
             PaymentRow(expense: expense, currencyCode: group.currency)
+                // Replaces the section's `onDelete` for this row alone.
+                //
+                // A payment is not something the user entered — it is an
+                // assertion that a debt was settled — so the way back out of it
+                // is an *undo*, and removing the record is merely how that is
+                // implemented. Labelled "Delete", the only correction available
+                // read as data loss: the first outside report of this came from
+                // someone who marked a transfer paid by accident, swiped left
+                // expecting to destroy something, and was surprised to find the
+                // debt restored instead.
+                //
+                // Still `.destructive`, because a record does go away and the
+                // red is honest about that. It is the word that was wrong.
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        undo(expense)
+                    } label: {
+                        Label("Undo", systemImage: "arrow.uturn.backward")
+                    }
+                }
         } else {
             Button {
                 formTarget = FormTarget(expense: expense, mode: .edit)
@@ -543,6 +584,20 @@ struct GroupDetailView: View {
     private func updateGroup(name: String, appearance: GroupAppearance) {
         do {
             try store.update(group, name: name, appearance: appearance)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Takes back a recorded settlement, restoring the debt it cleared.
+    ///
+    /// Deleting the payment is the whole of it: the settlement maths has no
+    /// concept of one — `GroupStore.recordPayment` writes an ordinary expense —
+    /// so removing that record puts every balance back exactly where it stood
+    /// before the tap.
+    private func undo(_ payment: Expense) {
+        do {
+            try store.delete(payment)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -970,28 +1025,57 @@ private struct ExpenseRow: View {
     let avatar: PersonAvatar?
     let currencyCode: String
 
+    /// The title, or `nil` for an expense saved without one.
+    ///
+    /// Blank and absent are the same thing here. `GroupStore` stores an empty
+    /// title as `nil`, but a record synced from a client built before titles
+    /// were optional can still carry `""` — and a row testing only for `nil`
+    /// would draw an empty line for it.
+    private var title: String? {
+        let text = expense.title?.trimmingCharacters(in: .whitespaces) ?? ""
+        return text.isEmpty ? nil : text
+    }
+
+    private var payer: String { expense.paidBy?.name ?? "?" }
+
+    /// VoiceOver gets no colour from the circle and would otherwise hear a bare
+    /// name with nothing saying what it is doing there.
+    private var accessiblePayer: String {
+        "Paid by \(expense.paidBy?.name ?? "unknown")"
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             PersonIcon(avatar ?? PersonAvatar(initials: nil, color: .gray), size: 26)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(expense.title ?? "Untitled")
-                    .font(.body)
+                if let title {
+                    Text(title)
+                        .font(.body)
 
-                // Three lines once — title, date, "Paid by X". The date moved to
-                // the day header above and the circle carries the payer, which
-                // leaves the name as the one thing still worth a second line:
-                // initials are ambiguous and a colour has to be learned.
-                //
-                // `.secondary`, not `.tertiary`: tertiary is for decoration, and
-                // who paid is the point of the row.
-                Text(expense.paidBy?.name ?? "?")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    // Spelled out for VoiceOver, which gets no colour from the
-                    // circle and would otherwise hear a bare name with nothing
-                    // saying what it is doing there.
-                    .accessibilityLabel("Paid by \(expense.paidBy?.name ?? "unknown")")
+                    // Three lines once — title, date, "Paid by X". The date
+                    // moved to the day header above and the circle carries the
+                    // payer, which leaves the name as the one thing still worth
+                    // a second line: initials are ambiguous and a colour has to
+                    // be learned.
+                    //
+                    // `.secondary`, not `.tertiary`: tertiary is for
+                    // decoration, and who paid is the point of the row.
+                    Text(payer)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(accessiblePayer)
+                } else {
+                    // An untitled expense leads with the payer rather than with
+                    // a filler word. "Untitled" says nothing, and says it again
+                    // on every row once titles are optional — where the payer
+                    // and the amount together are already a complete sentence.
+                    // `PaymentRow` in this same list has established that a
+                    // one-line row reads fine among two-line ones.
+                    Text(payer)
+                        .font(.body)
+                        .accessibilityLabel(accessiblePayer)
+                }
             }
 
             Spacer(minLength: 12)

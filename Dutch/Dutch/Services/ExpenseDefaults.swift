@@ -50,6 +50,7 @@ enum ExpenseDefaults {
         /// Rates carry a further `.<currencyCode>` suffix — see `rateKey`.
         case rate = "rate"
         case identity = "identity"
+        case recents = "recentCurrencies"
 
         func key(for id: UUID) -> String { "\(rawValue).\(id.uuidString)" }
     }
@@ -76,6 +77,10 @@ enum ExpenseDefaults {
     /// Poland after a week in Hungary still finds the złoty rate.
     private static func rateKey(for group: ExpenseGroup, currencyCode: String) -> String? {
         group.id.map { "\(Namespace.rate.key(for: $0)).\(currencyCode)" }
+    }
+
+    private static func recentsKey(for group: ExpenseGroup) -> String? {
+        group.id.map(Namespace.recents.key(for:))
     }
 
     // MARK: - Payer
@@ -136,6 +141,40 @@ enum ExpenseDefaults {
     static func rememberHomeCurrency(in group: ExpenseGroup) {
         guard let key = currencyKey(for: group) else { return }
         store.removeObject(forKey: key)
+    }
+
+    /// How many foreign currencies a group remembers having used.
+    ///
+    /// Deliberately low. Past a handful this stops being a shortcut and becomes
+    /// a second list to read before reaching the real one, and a group that has
+    /// genuinely spent in five currencies is better served by the picker's
+    /// search field than by a longer section above it.
+    private static let recentCurrencyLimit = 4
+
+    /// The foreign currencies this group has actually used, newest first.
+    ///
+    /// Distinct from `lastCurrency`, which answers "what should the next
+    /// expense start in" and is cleared the moment one goes back to the group's
+    /// own currency. This answers "what has this trip used" — the question a
+    /// picker of ~150 rows must answer to be usable at all. A week in Budapest
+    /// is otherwise one lookup for HUF and then a hundred scrolls past it.
+    ///
+    /// The group's own currency is never in here: the form pins it above this
+    /// list regardless, and storing it would spend one of the few slots on the
+    /// one code that cannot go missing.
+    static func recentCurrencies(in group: ExpenseGroup) -> [String] {
+        guard let key = recentsKey(for: group) else { return [] }
+        return store.stringArray(forKey: key) ?? []
+    }
+
+    /// Moves a currency to the front of that list.
+    static func rememberUsed(_ currencyCode: String, in group: ExpenseGroup) {
+        guard let key = recentsKey(for: group) else { return }
+
+        var codes = recentCurrencies(in: group)
+        codes.removeAll { $0 == currencyCode }
+        codes.insert(currencyCode, at: 0)
+        store.set(Array(codes.prefix(recentCurrencyLimit)), forKey: key)
     }
 
     // MARK: - Identity

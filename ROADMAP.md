@@ -13,9 +13,10 @@ cost approximately nothing. What would actually breach 3 MB is bundled fonts,
 image assets, an embedded rate database, or CoreML. None of the work below needs
 any of those. Watch the asset catalog, not the code.
 
-**The app is 1252 KB as of 2026-07-29**, down from 2164 KB, which makes the 3 MB
-ceiling a formality and 2 MB a comfortable one. Four changes did it, each
-measured by archiving rather than building:
+**The app is 1552 KB as of 2026-08-20**, down from 2164 KB, which makes the 3 MB
+ceiling a formality and 2 MB a comfortable one. It reached 1252 KB on 2026-07-29
+through the four changes below, each measured by archiving rather than building,
+and has spent 300 KB since on notifications and the first-feedback batch:
 
 | | saving |
 |---|---|
@@ -273,6 +274,55 @@ credential — searching finds only groups the device already has.
 
 *Cost: zero bytes. `CoreSpotlight` ships with the OS. No model change.*
 
+### The first-feedback batch
+
+One post on Reddit put the app on 800 phones and produced eleven requests in a
+weekend. Five of them were small, and they shipped together on 2026-08-20
+because they are all the same kind of thing: friction in the twenty seconds
+somebody actually spends in this app, found by people using it at a table rather
+than reading the code.
+
+**Undoing a settle-up** was the only one that was a defect. "Mark Paid" writes a
+reimbursement, and the expense list applied a blanket `onDelete` to every row —
+so the one way back out of an accidental settlement was a red **Delete**, on a
+list where deleting is how you destroy an expense you typed. It worked, and it
+read as data loss; the reporter tried it expecting to lose the row and was
+surprised to get the debt back. The payment rows now carry a `swipeActions` of
+their own labelled **Undo**. Still destructive, still red — a record does go
+away — but the word now describes what happens.
+
+**A title is no longer required.** An expense is a figure, a payer and a split;
+those three are what a balance is made of, and the title is a label on top of
+them. Requiring one meant standing at a bar typing "Beer" before the app would
+take the number. A blank title is stored as `nil` rather than `""` — every
+screen already falls back on a *missing* title, and an empty string is not
+missing: it satisfies `title ?? "Untitled"` and draws a blank line where the
+fallback belongs. Untitled rows lead with the payer instead of with the word
+"Untitled", which says nothing and would say it again on every row; `PaymentRow`
+had already established that a one-line row reads fine among two-line ones.
+
+**The cursor starts in the amount**, which follows from the above: it is now the
+only field the form cannot be saved without, and it raises the decimal pad where
+the title raised a full keyboard on a screen whose purpose is a number.
+
+**The currency picker is searchable**, and remembers what the group has spent
+in. Half of this was already built — `lastCurrency` has always prefilled the
+last-used currency, and the group's own has always been pinned to the top — but
+`.pickerStyle(.navigationLink)` gives no search field, and reaching HUF meant
+scrolling past a hundred codes nobody on the trip will spend. It is a hand-rolled
+list now, matching on the localized name as readily as the code, with the four
+currencies this group has actually used in a section above the full register.
+
+**Add Expense moved to the bottom bar.** It is the one thing on the detail
+screen anybody does more than once a trip, and the top-right corner is the
+furthest point on a 6.9" phone from the thumb holding it. Edit Group and Share
+stayed where they were: moving the whole toolbar down relocates the problem and
+costs the grouping that says which of the three is the point.
+
+*Cost: 36 KB archived, 1516 → 1552 KB, all of it binary — `Assets.car` is
+unchanged at 212 KB. No model change; the four features that touch storage all
+ride on `UserDefaults` or on attributes the model already had.*
+
 ---
 
 ## Next
@@ -349,6 +399,93 @@ invariant everything else here relies on, that the parts reconstruct the whole:
 this needs a running remainder on screen at all times, and a decided answer for
 what happens when the fixed amounts overshoot the total.
 
+Asked for directly, twice, in the first week of feedback. Do it in the same
+model version as **16** below — the lesson from the first four features here is
+that two attributes arriving separately means running the CloudKit
+initialize-and-promote dance twice, and that is the step that gets missed.
+
+### 15. Reopen the last group on launch
+
+Requested by somebody who lives in one group at a time, which on a trip is
+everybody. The parts already exist: `ExpenseDefaults.lastOpenedGroupID` records
+it for the Action button and the Home Screen action, and `AppRouter.open` is how
+anything outside the view tree pushes a screen. This is the wiring plus a switch
+in Settings.
+
+**A setting, defaulted off**, matching how notifications work here: the app does
+not change where it opens until asked. The one trap is precedence — a share
+link, a quick action and an intent all write to the same router, so the restore
+has to lose to any explicit destination, or accepting an invitation lands the
+new member in yesterday's trip instead of the group they were invited to.
+
+*Cost: a `UserDefaults` key and a `Toggle`. No model change.*
+
+### 16. Several people paid
+
+`paidBy` is a to-one relationship in the model *and* `payer: Participant.ID` in
+`SettlementCalculator`, so this reaches all the way down: a model version, a
+CloudKit promote, and a change to the one contract every balance in the app is
+computed through.
+
+It is also the symmetric end state. An expense today has one payer and many
+sharers; there is no principled reason the paying side is the singular one, and
+"we split the taxi and two of us put money in" is an ordinary sentence.
+
+What holds it back is that the workaround is not a workaround — it is exactly
+correct. Two expenses, one per payer, produce identical balances, and the app
+already makes the second one cheap through **Duplicate**. So this buys tidiness
+in the expense log rather than a capability, which puts it behind **12**, whose
+per-person amount control is the same shape of UI on the other side of the bill.
+
+### 17. Tip, tax and service charge
+
+The tractable half of "scan a receipt with the service charge split out". A
+percentage added on top of an entered amount, applied before the split, shown in
+the same *saves as* line that already echoes a foreign conversion back. It is a
+restaurant feature in an app whose commonest expense is dinner, and it needs no
+camera at all.
+
+The other half — reading line items off a photographed receipt — is a different
+proposition and is not scheduled. `VisionKit` ships with the OS so it costs
+nothing in the bundle, and the app already has a camera path in
+`QRScannerView`; the problem is that itemised parsing across real receipt
+layouts is the classic feature that is 80% right and therefore slower than
+typing. Scanning the *total* alone is not worth a camera permission prompt:
+typing 47.30 is four taps.
+
+Nothing here stores an image, so it does not reopen **Receipt photos** below.
+
+---
+
+## Localization
+
+**The app is English-only, and not merely untranslated — it is unlocalizable as
+written.** There is no String Catalog, no `.lproj`, and every user-facing string
+is a Swift literal. Brazilian Portuguese was the first language asked for, in
+the same weekend the app reached 800 phones, and it will not be the last.
+
+Adding a language is therefore not the work. The work is the three things
+standing in front of it:
+
+- **The strings have to become a catalog.** One `.xcstrings`, and every literal
+  migrated into it.
+- **Sentences assembled by interpolation have to become format strings.**
+  `"\(payer) paid \(recipient)"`, `"You pay \(name) \(amount)"` and
+  `"Paid by \(name)"` all bake English word order into the source. Positional
+  arguments are what let a translator move them.
+- **Plurals have to leave Swift.** `GroupDetailView.count(_:_:_:)` picks between
+  a singular and a plural by comparing to 1, which is the correct rule in
+  English and in no language that has more than two forms. The catalog's plural
+  variants exist precisely for this.
+
+Once that is done a language is close to free — a translation pass and a
+`.xcstrings` column — which is the reason to do it before there are two of them
+rather than after.
+
+*Cost: roughly 20–40 KB per language of compiled strings, well inside the
+budget. The expense is hours, not bytes: this is the largest item on this page
+and the only one whose cost is mostly typing.*
+
 ---
 
 ## Accessibility
@@ -424,6 +561,19 @@ cache, and a failure mode in order to reintroduce the problem.
 
 **A charts tab.** Swift Charts is system-provided so it's technically free, but
 it's a screen nobody opens twice for a group with eleven expenses in it.
+
+**An expense with no group.** Asked for as "let me split one dinner with one
+person without making a group". The need is real; the shape isn't. Sharing runs
+through the container's record zones, the free tier counts groups by which
+persistent store they came from, and settlement is defined over a roster — a
+group-less expense would need a second sharing mechanism and would sit outside
+`GroupLimit` entirely.
+
+What the request is actually describing is the ceremony of creating a group, not
+the existence of one. The answer is a **"Split with…"** fast path that makes a
+two-person group in a single step with a name already filled in. Zero model
+change, and it fixes the friction rather than adding an entity that contradicts
+the rest of the app.
 
 **A backend, accounts, or login.** The absence of one is the design.
 

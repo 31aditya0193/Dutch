@@ -253,7 +253,14 @@ struct GroupStore {
         shares: [UUID: Int]?,
         to expense: Expense
     ) {
-        expense.title = title
+        // Stored as `nil` when blank rather than as `""`, because a title is
+        // optional at the form and every screen already falls back on a
+        // *missing* one. An empty string is not missing: it satisfies
+        // `title ?? "Untitled"` and draws a blank line where the fallback
+        // belongs, which is the one way an untitled expense could look broken
+        // rather than merely brief.
+        let named = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        expense.title = named.isEmpty ? nil : named
         expense.amount = amount.amount
         expense.paidBy = payer
         expense.splitAmong = NSSet(set: participants)

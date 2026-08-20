@@ -463,6 +463,44 @@ struct GroupStoreTests {
     /// A uniform weighting is an even split, and storing it as one keeps the
     /// ordinary expense identical to what it was before weights existed —
     /// which is what a client on the old model will read it as.
+    /// The screens all fall back on a *missing* title. An empty string is not
+    /// missing — it satisfies `title ?? "Untitled"` and draws a blank line
+    /// where the fallback belongs — so a blank title has to reach the store as
+    /// `nil` rather than as `""`.
+    @Test("A blank title is stored as no title at all")
+    func blankTitlesAreStoredAsNil() throws {
+        let store = GroupStore(context: TestStack.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+        let bob = try store.addMember(named: "Bob", to: group)
+
+        try store.addExpense(
+            title: "   ", amount: Money(amount: 30.00),
+            paidBy: alice, splitAmong: [alice, bob], in: group
+        )
+        let expense = try #require((group.expenses as? Set<Expense>)?.first)
+        #expect(expense.title == nil)
+
+        // And the balances are untouched by any of it: a title is a label on an
+        // expense, never part of what one is worth.
+        let bobBalance = try #require(group.balances.first { $0.participant.name == "Bob" })
+        #expect(bobBalance.amount == Money(cents: -1500))
+    }
+
+    @Test("An expense keeps a title that is only surrounded by whitespace")
+    func titlesAreTrimmedNotDiscarded() throws {
+        let store = GroupStore(context: TestStack.makeContext())
+        let group = try store.createGroup(named: "Berlin Trip")
+        let alice = try store.addMember(named: "Alice", to: group)
+
+        try store.addExpense(
+            title: "  Dinner  ", amount: Money(amount: 30.00),
+            paidBy: alice, splitAmong: [alice], in: group
+        )
+        let expense = try #require((group.expenses as? Set<Expense>)?.first)
+        #expect(expense.title == "Dinner")
+    }
+
     @Test("A uniform weighting is stored as no weighting at all")
     func uniformWeightsAreNotStored() throws {
         let store = GroupStore(context: TestStack.makeContext())
