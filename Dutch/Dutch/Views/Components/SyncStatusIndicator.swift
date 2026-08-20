@@ -58,7 +58,19 @@ struct SyncStatusIndicator: View {
                     // Replace rather than cut: the glyph changing is the only
                     // notice a state change gets now that no text is on screen.
                     .contentTransition(.symbolEffect(.replace))
-                    .symbolEffect(.pulse, isActive: sync.isSyncing)
+                    // No `.symbolEffect(.pulse, isActive:)` here on purpose.
+                    // `isSyncing` flips true within the first second of launch
+                    // as mirroring starts up, which started a continuous, every-
+                    // frame animated symbol effect on this toolbar glyph at the
+                    // exact moment iOS 26.0.1's RenderBox is least warmed up.
+                    // Field crash logs (iPhone 16, 26.0.1, ~0.9s after launch)
+                    // show a SIGSEGV inside RB::Symbol::Glyph::Layer on the
+                    // SwiftUI async symbol-render thread — an Apple-side bug,
+                    // but this pulse was the only continuous animated symbol
+                    // effect in the app and the only one guaranteed to run
+                    // unconditionally at launch. Removing it stopped the crash.
+                    // Don't reintroduce a looping symbolEffect on this glyph
+                    // without confirming RenderBox is fixed.
                     .foregroundStyle(tint)
             }
             .accessibilityLabel("iCloud sync")
