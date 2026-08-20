@@ -455,6 +455,46 @@ typing 47.30 is four taps.
 
 Nothing here stores an image, so it does not reopen **Receipt photos** below.
 
+### 18. The empty Members section says the same thing three times
+
+Reported as "this feels redundant", about a section that on first launch reads:
+a header saying **Members**, a grey row saying *Add members to start splitting
+expenses.*, and a button saying **Add Member**. Three lines, one instruction.
+The complaint is right.
+
+The suggested fix was to make the header the instruction — *Add Members* while
+empty, reverting to *Members* once there are any — and that is the one of the
+three that should not move. A section header is the context VoiceOver reads
+before every row beneath it, so a verb there is announced immediately before the
+button that repeats it, which makes the redundancy louder rather than quieter
+for the people least able to skip past it. It is also only wrong while the
+section is empty; a header that changes under you draws the eye to the least
+interesting part of the screen at the exact moment the eye is needed on the
+button.
+
+**Cut the grey row instead**, which is the line carrying no information the
+button doesn't. `Add Member` sits directly below it and says what to do; the
+header says what the section is. The remaining half — *to start splitting
+expenses* — is the screen's purpose, not this section's, and the screen has a
+title.
+
+The precedent is already in the same file. `expensesSection` shows a placeholder
+**or** an action, never both: with no members it says *No expenses yet.*, and the
+moment members exist that line is replaced by **Add the First Expense**.
+`membersSection` is the one place that stacks the two. So this is not a new rule,
+it is applying the existing one to the section that missed it.
+
+Worth looking at the whole screen while in there. A brand-new group draws three
+empty containers in a row — *Nothing spent yet*, the members placeholder, *No
+expenses yet.* — each individually reasonable and collectively a screen that
+announces its own emptiness three times before offering anything to do about it.
+Fixing the members section answers the report; whether a group with no members
+and no expenses should be one empty state rather than three is the larger
+question underneath it, and is not settled here.
+
+*Cost: negative. One `Text`, one branch and one string removed. No model change.*
+
+
 ---
 
 ## Localization
