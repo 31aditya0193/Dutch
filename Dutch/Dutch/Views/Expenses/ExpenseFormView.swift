@@ -344,7 +344,7 @@ struct ExpenseFormView: View {
         HStack {
             // Hidden from VoiceOver because the field below carries the
             // same label — otherwise it is announced twice.
-            Text("Amount")
+            Text(.amount)
                 .accessibilityHidden(true)
 
             Spacer(minLength: 12)
@@ -428,7 +428,7 @@ struct ExpenseFormView: View {
     private func paidBySection(_ members: [Person], _ avatars: RosterAvatars) -> some View {
         Section("Paid By") {
             if members.isEmpty {
-                Text("Add members first.")
+                Text(.addMembersFirst)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(members, id: \.objectID) { member in
@@ -450,7 +450,7 @@ struct ExpenseFormView: View {
     ) -> some View {
         Section {
             if members.isEmpty {
-                Text("Add members first.")
+                Text(.addMembersFirst)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(members, id: \.objectID) { member in

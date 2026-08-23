@@ -130,7 +130,7 @@ struct GroupListView: View {
                     ContentUnavailableView {
                         Label("No Groups", systemImage: "rectangle.3.group")
                     } description: {
-                        Text("Create a group to start splitting expenses, or join one with a QR code.")
+                        Text(.createOrJoinAGroup)
                     } actions: {
                         // An empty state without a next action is a dead end.
                         Button("Create a Group", action: requestNewGroup)

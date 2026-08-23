@@ -186,9 +186,9 @@ struct SettingsView: View {
                 Label("Contact", systemImage: "envelope")
             }
         } header: {
-            Text("About")
+            Text(.about)
         } footer: {
-            Text("Dutch keeps your groups in your own iCloud account. Nothing is stored on any server of ours, because there isn't one.")
+            Text(.dutchPrivacyDisclosure)
         }
     }
 

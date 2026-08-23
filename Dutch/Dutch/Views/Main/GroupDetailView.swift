@@ -240,7 +240,7 @@ struct GroupDetailView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     if contents.spendingCount > 0 {
-                        Text("Total spent")
+                        Text(.totalSpent)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
@@ -300,7 +300,7 @@ struct GroupDetailView: View {
     private func membersSection(_ contents: Contents) -> some View {
         Section {
             if contents.members.isEmpty {
-                Text("Add members to start splitting expenses.")
+                Text(.addMembersToSplitExpense)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(contents.members, id: \.objectID) { member in
@@ -895,7 +895,7 @@ private struct MemberBalanceRow: View {
                 // still how everyone else in the group refers to this person, and
                 // dropping it makes the row harder to scan, not easier.
                 if isMe {
-                    Text("You")
+                    Text(.youTheUser)
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
