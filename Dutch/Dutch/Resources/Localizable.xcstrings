@@ -144,7 +144,15 @@
       }
     },
     "expenseDetails" : {
-      "extractionState" : "manual"
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expense Details"
+          }
+        }
+      }
     },
     "expenseRecordDescription" : {
       "extractionState" : "manual",
