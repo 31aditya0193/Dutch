@@ -91,7 +91,7 @@ struct SyncStatusIndicator: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(sync.problem == nil ? Color.primary : Color.orange)
 
-            Text("Pull the list down to check iCloud.")
+            Text(.pullToRefresh)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

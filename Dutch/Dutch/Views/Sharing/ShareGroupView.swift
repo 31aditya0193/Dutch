@@ -111,7 +111,7 @@ struct ShareGroupView: View {
                             .padding(.vertical, 12)
                             .background(.regularMaterial, in: Capsule())
 
-                        Text("Check this matches on the other device.")
+                        Text(.checkMatchOnOtherDevice)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -140,7 +140,7 @@ struct ShareGroupView: View {
                         // Scanning is joining, with no approval step on this
                         // device. That's the point — but it has to be said,
                         // because a QR code doesn't look like a key.
-                        Text("Anyone who scans this code can join the group. Use Invite People instead to choose people yourself.")
+                        Text(.newAdditionInstructions)
                     }
                 }
                 .font(.caption)
