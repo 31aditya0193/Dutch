@@ -74,7 +74,7 @@ struct JoinGroupView: View {
 
             VStack {
                 Spacer()
-                Text("Point the camera at the group's QR code.")
+                Text(.qrScanningInstructions)
                     .font(.callout)
                     .padding()
                     .background(.ultraThinMaterial, in: Capsule())

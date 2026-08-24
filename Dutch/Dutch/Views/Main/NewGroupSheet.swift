@@ -51,7 +51,7 @@ struct NewGroupSheet: View {
                     }
                     .pickerStyle(.navigationLink)
                 } footer: {
-                    Text("Every expense in this group is recorded in this currency, on everyone's device.")
+                    Text(.expenseRecordDescription)
                 }
 
                 Section("Appearance") {

@@ -92,7 +92,7 @@ struct ShareGroupView: View {
                     ContentUnavailableView(
                         "Invitation Not Ready",
                         systemImage: "qrcode",
-                        description: Text("iCloud hasn't finished creating the link yet.")
+                        description: Text(.iCloudLinkCreationUnfinished)
                     )
                 }
 
@@ -135,7 +135,7 @@ struct ShareGroupView: View {
                 // people to a scanner that can only fail.
                 Group {
                     if share.publicPermission == .none {
-                        Text("Only people you invite can join, so scanning this code won't work on its own. Use Invite People, and allow anyone with the link from there.")
+                        Text(.qrInvitationInstructions)
                     } else {
                         // Scanning is joining, with no approval step on this
                         // device. That's the point — but it has to be said,

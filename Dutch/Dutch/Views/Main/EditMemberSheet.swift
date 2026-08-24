@@ -80,7 +80,7 @@ struct EditMemberSheet: View {
                 Section {
                     PaletteColorGrid(selection: $color)
                 } footer: {
-                    Text("The name and colour are how everyone in the group sees this person, on their phone as well as yours.")
+                    Text(.personalizationFooterInfo)
                 }
 
                 // Only once there is a choice to undo. A reset offered for a

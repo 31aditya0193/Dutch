@@ -103,7 +103,7 @@ struct PaywallView: View {
             if purchases.loadFailed && purchases.product == nil {
                 // No price means no honest button to show. Say why, and offer
                 // the only thing that can help.
-                Text("The App Store couldn't be reached.")
+                Text(.appStoreUnreachable)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -134,7 +134,7 @@ struct PaywallView: View {
                 .disabled(purchases.product == nil || purchases.isWorking)
                 .accessibilityLabel(Text(buyAccessibilityLabel))
 
-                Text("One-time purchase.")
+                Text(.oneTimePurchase)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
