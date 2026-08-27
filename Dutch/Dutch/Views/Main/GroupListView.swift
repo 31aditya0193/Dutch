@@ -499,8 +499,8 @@ private struct GroupRow: View {
         let total = settlement.totalSpent.formatted(in: group)
         let pending = settlement.transfers.count
         return pending == 0
-            ? "\(total) total, settled up"
-            : "\(total) total, \(pending) payments to settle"
+            ? String(localized: "\(total) total, settled up")
+            : String(localized: "\(total) total, \(pending) payments to settle")
     }
 }
 

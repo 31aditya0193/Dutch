@@ -319,7 +319,7 @@ final class ExpenseNotifier: NSObject, ObservableObject {
     ) -> [UNMutableNotificationContent] {
         let bodies: [String]
         if arrivals.count > detailLimit {
-            bodies = ["\(arrivals.count) new expenses"]
+            bodies = [String(localized: "\(arrivals.count) new expenses")]
         } else {
             bodies = arrivals.map(\.body)
         }
@@ -356,8 +356,8 @@ final class ExpenseNotifier: NSObject, ObservableObject {
 
         var body: String {
             isReimbursement
-                ? "\(payer) settled up · \(amount)"
-                : "\(payer) added \(title) · \(amount)"
+                ? String(localized: "\(payer) settled up · \(amount)")
+                : String(localized: "\(payer) added \(title) · \(amount)")
         }
     }
 
@@ -446,7 +446,7 @@ final class ExpenseNotifier: NSObject, ObservableObject {
             groupID: groupID,
             groupName: name,
             payer: payerName,
-            title: expense.title ?? "an expense",
+            title: expense.title ?? String(localized: "an expense"),
             amount: Money(amount: expense.amount).formatted(in: group),
             isReimbursement: expense.isReimbursement
         )

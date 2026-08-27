@@ -211,37 +211,37 @@ final class PurchaseStore: ObservableObject {
         if let purchaseError = error as? Product.PurchaseError {
             switch purchaseError {
             case .productUnavailable:
-                return "This purchase isn't available on your App Store account yet. If the app was just updated, try again a little later."
+                return String(localized: "This purchase isn't available on your App Store account yet. If the app was just updated, try again a little later.")
             case .purchaseNotAllowed:
-                return "Purchases are turned off on this device. Check Screen Time restrictions."
+                return String(localized: "Purchases are turned off on this device. Check Screen Time restrictions.")
             case .ineligibleForOffer:
-                return "This offer isn't available on your account."
+                return String(localized: "This offer isn't available on your account.")
             case .invalidOfferIdentifier, .invalidOfferPrice, .invalidOfferSignature, .missingOfferParameters:
-                return "That purchase couldn't be set up. Please try again."
+                return String(localized: "That purchase couldn't be set up. Please try again.")
             case .invalidQuantity:
-                return "That quantity isn't available."
+                return String(localized: "That quantity isn't available.")
             default:
                 // Plain `default`, not `@unknown default`: StoreKit adds cases
                 // between SDK versions and this is a fallback message, not a
                 // decision — a build warning here would be noise.
-                return "That purchase couldn't be completed."
+                return String(localized: "That purchase couldn't be completed.")
             }
         }
 
         if let storeKitError = error as? StoreKitError {
             switch storeKitError {
             case .networkError:
-                return "The App Store couldn't be reached. Check your connection and try again."
+                return String(localized: "The App Store couldn't be reached. Check your connection and try again.")
             case .notAvailableInStorefront:
-                return "This purchase isn't available in your country's App Store."
+                return String(localized: "This purchase isn't available in your country's App Store.")
             case .userCancelled:
-                return "Purchase cancelled."
+                return String(localized: "Purchase cancelled.")
             case .notEntitled:
-                return "This device isn't allowed to make that purchase."
+                return String(localized: "This device isn't allowed to make that purchase.")
             case .systemError, .unknown:
-                return "The App Store couldn't complete that right now. Please try again."
+                return String(localized: "The App Store couldn't complete that right now. Please try again.")
             default:
-                return "That purchase couldn't be completed."
+                return String(localized: "That purchase couldn't be completed.")
             }
         }
 

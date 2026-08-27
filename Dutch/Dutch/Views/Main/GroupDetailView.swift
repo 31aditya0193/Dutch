@@ -253,7 +253,7 @@ struct GroupDetailView: View {
                         // entry to the list below but buys nothing, and "12
                         // expenses" over a total that added up nine of them is
                         // just wrong.
-                        Text("\(count(contents.spendingCount, "expense", "expenses")) · \(count(contents.members.count, "member", "members"))")
+                        Text("\(expenseCount(contents.spendingCount)) · \(memberCount(contents.members.count))")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     } else {
@@ -265,7 +265,7 @@ struct GroupDetailView: View {
                         // the members section below already asks for the first
                         // one in words.
                         if !contents.members.isEmpty {
-                            Text(count(contents.members.count, "member", "members"))
+                            Text(memberCount(contents.members.count))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -511,9 +511,10 @@ struct GroupDetailView: View {
 
     private var deletionTitle: String {
         guard membersPendingDeletion.count == 1 else {
-            return "Remove \(membersPendingDeletion.count) members?"
+            return String(localized: "Remove \(membersPendingDeletion.count) members?")
         }
-        return "Remove \(membersPendingDeletion.first?.name ?? "this member")?"
+        let name = membersPendingDeletion.first?.name ?? String(localized: "this member")
+        return String(localized: "Remove \(name)?")
     }
 
     /// Names the cascade explicitly. Deleting the expenses they paid for is the
@@ -531,13 +532,13 @@ struct GroupDetailView: View {
 
         switch (removed, resplit) {
         case (0, 0):
-            return "This won't change anyone else's balance."
+            return String(localized: "This won't change anyone else's balance.")
         case (0, _):
-            return "\(count(resplit, "expense", "expenses")) they were splitting gets divided between everyone left, so balances change."
+            return String(localized: "\(expenseCount(resplit)) they were splitting gets divided between everyone left, so balances change.")
         case (_, 0):
-            return "This also removes \(count(removed, "expense", "expenses")) they paid for, and recalculates everyone's balance."
+            return String(localized: "This also removes \(expenseCount(removed)) they paid for, and recalculates everyone's balance.")
         default:
-            return "This also removes \(count(removed, "expense", "expenses")) they paid for and re-splits \(count(resplit, "expense", "expenses")) between everyone left. Balances change."
+            return String(localized: "This also removes \(expenseCount(removed)) they paid for and re-splits \(expenseCount(resplit)) between everyone left. Balances change.")
         }
     }
 
@@ -669,8 +670,15 @@ struct GroupDetailView: View {
         withAnimation(.snappy) { me = member }
     }
 
-    private func count(_ value: Int, _ singular: String, _ plural: String) -> String {
-        "\(value) \(value == 1 ? singular : plural)"
+    /// Counts as words. The agreement lives in the string catalog rather than
+    /// here: English needs two forms, Polish needs four, and a `singular`/
+    /// `plural` pair in Swift can only ever express the first of those.
+    private func expenseCount(_ value: Int) -> String {
+        String(localized: "\(value) expenses")
+    }
+
+    private func memberCount(_ value: Int) -> String {
+        String(localized: "\(value) members")
     }
 
     /// "Ala and Bartek have joined but haven't picked a name yet."
@@ -839,7 +847,7 @@ private struct SharedSummary: Transferable {
     let summary: GroupSummary
 
     static var transferRepresentation: some TransferRepresentation {
-        ProxyRepresentation { $0.summary.text() }
+        ProxyRepresentation { $0.summary.text(strings: .localized) }
     }
 }
 

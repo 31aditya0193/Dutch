@@ -194,7 +194,7 @@ final class CloudSyncMonitor: ObservableObject {
             }
         } else {
             problems[event.type] = event.error.map(Self.describe)
-                ?? "iCloud sync didn't finish."
+                ?? String(localized: "iCloud sync didn't finish.")
         }
 
         // Import first: it is the half the person staring at a group somebody
@@ -217,15 +217,15 @@ final class CloudSyncMonitor: ObservableObject {
 
         switch ckError.code {
         case .notAuthenticated:
-            return "Sign in to iCloud in Settings to sync your groups."
+            return String(localized: "Sign in to iCloud in Settings to sync your groups.")
         case .quotaExceeded:
-            return "Your iCloud storage is full, so changes aren't syncing."
+            return String(localized: "Your iCloud storage is full, so changes aren't syncing.")
         case .networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited:
-            return "iCloud is unreachable. Changes will sync when the connection is back."
+            return String(localized: "iCloud is unreachable. Changes will sync when the connection is back.")
         case .managedAccountRestricted, .permissionFailure:
-            return "This Apple Account isn't allowed to sync with iCloud."
+            return String(localized: "This Apple Account isn't allowed to sync with iCloud.")
         case .zoneNotFound, .userDeletedZone:
-            return "This group is no longer in iCloud."
+            return String(localized: "This group is no longer in iCloud.")
         case .partialFailure:
             // The umbrella error describes nothing; the reason is on one of the
             // items underneath it. CloudKit does not nest these, so taking the

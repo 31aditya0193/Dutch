@@ -117,66 +117,82 @@ extension GroupSummary {
     /// checked — and being checkable is the only reason to paste it into the
     /// group chat rather than just telling everyone the number.
     ///
-    /// The prose is English and the dates are not, which is deliberate rather
-    /// than half-finished: the app itself is English-only, and its expense rows
-    /// already write dates in the reader's own convention. A summary that said
-    /// `12 lip` on screen and `Jul 12` in the message would be the odd one out.
+    /// The dates are the reader's own and the prose is whatever the caller
+    /// hands over, which is deliberate rather than half-finished: the expense
+    /// rows on screen already write dates in the reader's convention, and a
+    /// summary that said `12 lip` on screen and `Jul 12` in the message would
+    /// be the odd one out.
     ///
-    /// - Parameter locale: Formats amounts and dates. Injected rather than read
-    ///   from `Locale.current` so the output is testable; the currency itself
-    ///   always comes from the group, never from the reader.
-    public func text(locale: Locale = .current) -> String {
-        var lines = [name.isEmpty ? "Group" : name, headline(locale: locale), ""]
+    /// - Parameters:
+    ///   - locale: Formats amounts and dates. Injected rather than read from
+    ///     `Locale.current` so the output is testable; the currency itself
+    ///     always comes from the group, never from the reader.
+    ///   - strings: Every word in the message. Defaults to English — see
+    ///     `GroupSummaryStrings` for why the wording arrives from outside
+    ///     instead of being localized here.
+    public func text(
+        locale: Locale = .current,
+        strings: GroupSummaryStrings = .english
+    ) -> String {
+        var lines = [
+            name.isEmpty ? strings.fallbackTitle : name,
+            headline(locale: locale, strings: strings),
+            "",
+        ]
 
-        lines += settlementLines(locale: locale)
+        lines += settlementLines(locale: locale, strings: strings)
 
         if !entries.isEmpty {
-            lines += [""] + expenseLines(locale: locale)
+            lines += [""] + expenseLines(locale: locale, strings: strings)
         }
 
         return lines.joined(separator: "\n")
     }
 
-    private func headline(locale: Locale) -> String {
-        let people = pluralised(memberCount, "person", "people")
+    /// The separator is punctuation rather than prose, so it stays here: every
+    /// language this has to render puts the same middle dot between the facts.
+    private func headline(locale: Locale, strings: GroupSummaryStrings) -> String {
+        let people = strings.peopleCount(memberCount)
 
         guard spendingCount > 0 else {
-            return "No expenses yet · \(people)"
+            return [strings.noExpensesYet, people].joined(separator: " · ")
         }
 
         return [
-            "\(totalSpent.formatted(currencyCode: currencyCode, locale: locale)) total",
-            pluralised(spendingCount, "expense", "expenses"),
+            strings.total(totalSpent.formatted(currencyCode: currencyCode, locale: locale)),
+            strings.expenseCount(spendingCount),
             people,
         ].joined(separator: " · ")
     }
 
-    private func settlementLines(locale: Locale) -> [String] {
+    private func settlementLines(locale: Locale, strings: GroupSummaryStrings) -> [String] {
         guard !transfers.isEmpty else {
             // Distinguished on purpose: a group that has spent nothing is not
             // the same as one where everybody has paid up, and congratulating
             // an empty group on being settled reads like the app lost the data.
-            return [spendingCount > 0 ? "Everyone is settled up." : "Nothing to settle yet."]
+            return [spendingCount > 0 ? strings.everyoneSettled : strings.nothingToSettle]
         }
 
-        return ["Settle up"] + transfers.map { transfer in
+        return [strings.settleUpHeading] + transfers.map { transfer in
             let amount = transfer.amount.formatted(currencyCode: currencyCode, locale: locale)
-            return "• \(transfer.from.name) pays \(transfer.to.name) \(amount)"
+            return strings.transferLine(transfer.from.name, transfer.to.name, amount)
         }
     }
 
-    private func expenseLines(locale: Locale) -> [String] {
-        ["Expenses"] + entries.map { $0.line(currencyCode: currencyCode, locale: locale) }
-    }
-
-    private func pluralised(_ value: Int, _ singular: String, _ plural: String) -> String {
-        "\(value) \(value == 1 ? singular : plural)"
+    private func expenseLines(locale: Locale, strings: GroupSummaryStrings) -> [String] {
+        [strings.expensesHeading] + entries.map {
+            $0.line(currencyCode: currencyCode, locale: locale, strings: strings)
+        }
     }
 }
 
 extension GroupSummary.Entry {
     /// One log line — a purchase, or a payment that settled part of the bill.
-    fileprivate func line(currencyCode: String, locale: Locale) -> String {
+    fileprivate func line(
+        currencyCode: String,
+        locale: Locale,
+        strings: GroupSummaryStrings
+    ) -> String {
         let money = amount.formatted(currencyCode: currencyCode, locale: locale)
 
         var line: String
@@ -185,17 +201,22 @@ extension GroupSummary.Entry {
             // moved between two people and bought nothing. Giving it a title
             // and an amount would file it alongside the things the group
             // actually paid for.
-            line = "• \(payer) paid \(paidBackTo) \(money)"
+            line = strings.reimbursementLine(payer, paidBackTo, money)
         } else {
-            line = "• \(title.isEmpty ? "Untitled" : title) — \(money)"
-            if let foreign {
-                line += " (\(foreign.formatted(locale: locale)))"
-            }
-            line += ", paid by \(payer)"
+            // Whole line at a time rather than assembled from a stem and two
+            // suffixes: a language that puts the payer before the amount, or
+            // the currency note after it, cannot be reached by appending.
+            let name = title.isEmpty ? strings.untitled : title
+            line = foreign.map {
+                strings.foreignExpenseLine(name, money, $0.formatted(locale: locale), payer)
+            } ?? strings.expenseLine(name, money, payer)
         }
 
         if let date {
-            line += " — \(date.formatted(.dateTime.day().month(.abbreviated).locale(locale)))"
+            line = strings.dated(
+                line,
+                date.formatted(.dateTime.day().month(.abbreviated).locale(locale))
+            )
         }
 
         return line

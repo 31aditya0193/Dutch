@@ -43,7 +43,7 @@ struct CheckBalanceIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
         let context = PersistenceController.shared.viewContext
         let group = try resolveGroup(self.group, in: context)
-        let name = group.name ?? "this group"
+        let name = group.name ?? String(localized: "this group")
 
         let settlement = group.settlement()
         let members = Array((group.members as? Set<Person>) ?? [])
@@ -53,19 +53,22 @@ struct CheckBalanceIntent: AppIntent {
             let standing = Standing(balance: settlement.balanceByParticipant[id])
             switch standing {
             case .owes, .isOwed:
-                answer = "\(standing.accessibleValue(isMe: true, currencyCode: group.currency)) in \(name)."
+                let position = standing.accessibleValue(isMe: true, currencyCode: group.currency)
+                answer = String(localized: "\(position) in \(name).")
             case .settled:
                 // Being square yourself doesn't mean the trip is finished, and
                 // an answer that stopped at "settled up" would hide that.
                 let pending = settlement.transfers.count
+                let payments = String(localized: "\(pending) payments")
                 answer = pending == 0
-                    ? "You're settled up in \(name), and so is everyone else."
-                    : "You're settled up in \(name). \(pending) payment\(pending == 1 ? "" : "s") left between the others."
+                    ? String(localized: "You're settled up in \(name), and so is everyone else.")
+                    : String(localized: "You're settled up in \(name). \(payments) left between the others.")
             }
         } else {
             // No identity set, so there is no "you" — say what the group did,
             // which is the same fallback the group list makes.
-            answer = "\(name) has spent \(settlement.totalSpent.formatted(in: group)). Open Dutch and touch and hold your own name to hear your own balance."
+            let total = settlement.totalSpent.formatted(in: group)
+            answer = String(localized: "\(name) has spent \(total). Open Dutch and touch and hold your own name to hear your own balance.")
         }
 
         return .result(value: answer, dialog: IntentDialog(stringLiteral: answer))

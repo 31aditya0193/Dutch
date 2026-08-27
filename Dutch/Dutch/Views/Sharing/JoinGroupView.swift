@@ -142,13 +142,13 @@ struct JoinGroupView: View {
 
         switch ckError.code {
         case .participantMayNeedVerification:
-            return "This group only accepts people invited by name. Ask whoever shared it to send you an invitation, or to allow anyone with the link."
+            return String(localized: "This group only accepts people invited by name. Ask whoever shared it to send you an invitation, or to allow anyone with the link.")
         case .unknownItem:
-            return "That invitation is no longer available. The group may have stopped being shared."
+            return String(localized: "That invitation is no longer available. The group may have stopped being shared.")
         case .notAuthenticated:
-            return "Sign in to iCloud in Settings to join a shared group."
+            return String(localized: "Sign in to iCloud in Settings to join a shared group.")
         case .networkUnavailable, .networkFailure:
-            return "You appear to be offline. Check your connection and scan again."
+            return String(localized: "You appear to be offline. Check your connection and scan again.")
         default:
             return ckError.localizedDescription
         }

@@ -89,7 +89,8 @@ struct AddExpenseIntent: AppIntent {
         amount: Money,
         payer: Person
     ) -> IntentDialog {
-        let recorded = "Added \(amount.formatted(in: group)) to \(group.name ?? "the group")."
+        let name = group.name ?? String(localized: "the group")
+        let recorded = String(localized: "Added \(amount.formatted(in: group)) to \(name).")
 
         guard let id = payer.id else { return IntentDialog(stringLiteral: recorded) }
 

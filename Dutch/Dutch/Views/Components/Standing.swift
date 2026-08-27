@@ -44,9 +44,9 @@ enum Standing: Equatable {
     /// red/green deficiency, and VoiceOver never sees it at all.
     func caption(isMe: Bool) -> String {
         switch self {
-        case .owes: isMe ? "you owe" : "owes"
-        case .isOwed: isMe ? "you are owed" : "is owed"
-        case .settled: "settled up"
+        case .owes: isMe ? String(localized: "you owe") : String(localized: "owes")
+        case .isOwed: isMe ? String(localized: "you are owed") : String(localized: "is owed")
+        case .settled: String(localized: "settled up")
         }
     }
 
@@ -54,11 +54,15 @@ enum Standing: Equatable {
     func accessibleValue(isMe: Bool, currencyCode: String) -> String {
         switch self {
         case .owes(let amount):
-            "\(isMe ? "You owe" : "Owes") \(amount.formatted(currencyCode: currencyCode))"
+            let money = amount.formatted(currencyCode: currencyCode)
+            return isMe ? String(localized: "You owe \(money)") : String(localized: "Owes \(money)")
         case .isOwed(let amount):
-            "\(isMe ? "You are owed" : "Is owed") \(amount.formatted(currencyCode: currencyCode))"
+            let money = amount.formatted(currencyCode: currencyCode)
+            return isMe
+                ? String(localized: "You are owed \(money)")
+                : String(localized: "Is owed \(money)")
         case .settled:
-            "Settled up"
+            return String(localized: "Settled up")
         }
     }
 }
