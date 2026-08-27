@@ -89,7 +89,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("Notifications")
+            Text(.notifications)
         } footer: {
             Text(footer)
         }

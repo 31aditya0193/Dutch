@@ -257,7 +257,7 @@ struct GroupDetailView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Nothing spent yet")
+                        Text(.nothingSpentYet)
                             .font(.headline)
 
                         // Only once there is a roster. "0 members" next to
@@ -359,13 +359,13 @@ struct GroupDetailView: View {
                 Label("Add Member", systemImage: "person.badge.plus")
             }
         } header: {
-            Text("Members")
+            Text(.members)
         } footer: {
             VStack(alignment: .leading, spacing: 8) {
                 // Shown only until it has been answered — a hint that stays on
                 // screen after you've acted on it is just clutter.
                 if me == nil, !contents.members.isEmpty {
-                    Text("Touch and hold your own name to have Dutch address you directly.")
+                    Text(.addressingTip)
                 }
 
                 // The roster looks complete whether or not it is, so the only
@@ -390,12 +390,12 @@ struct GroupDetailView: View {
                     )
                 }
             } header: {
-                Text("Settle Up")
+                Text(.settleUp)
             } footer: {
                 // Deliberately not "the fewest payments" — the calculator is
                 // greedy, and the true minimum is NP-hard. See
                 // `SettlementCalculator.transfers(settling:)`.
-                Text("Make these payments and everyone is even. Mark one paid and it is logged below.")
+                Text(.settlementExplanation)
             }
         }
     }
@@ -412,7 +412,7 @@ struct GroupDetailView: View {
         if contents.days.isEmpty {
             Section("Expenses") {
                 if contents.members.isEmpty {
-                    Text("No expenses yet.")
+                    Text(.noExpensesYet)
                         .foregroundStyle(.secondary)
                 } else {
                     // Members exist, so the app is ready for its main action —
@@ -930,7 +930,7 @@ private struct MemberBalanceRow: View {
                         .foregroundStyle(standing.tint)
                         .contentTransition(.numericText())
                 case .settled:
-                    Text("Settled")
+                    Text(.settled)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

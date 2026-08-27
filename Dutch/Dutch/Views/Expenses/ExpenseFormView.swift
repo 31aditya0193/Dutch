@@ -293,7 +293,7 @@ struct ExpenseFormView: View {
                 Button("Cancel", role: .cancel) { customTarget = nil }
                 Button("Set", action: applyCustomShare)
             } message: {
-                Text("Percent of a full share, 1 to 200. A fare with 51% off is 49.")
+                Text(.partialPercentageExplanation)
             }
             .errorBanner($errorMessage)
             .task {
@@ -328,7 +328,7 @@ struct ExpenseFormView: View {
             currencyRow
             rateRow
         } header: {
-            Text("Expense Details")
+            Text(.expenseDetails)
         } footer: {
             // Echoes back exactly what will be stored, which is the only way
             // the user can catch a mis-parsed separator — or a rate entered
@@ -473,7 +473,7 @@ struct ExpenseFormView: View {
             }
         } header: {
             HStack {
-                Text("Split Among")
+                Text(.splitAmong)
                 Spacer()
                 if !members.isEmpty {
                     // Splitting evenly across everyone is the common case, and
@@ -492,14 +492,14 @@ struct ExpenseFormView: View {
             if splitsEvenly {
                 // The payer is not added implicitly — leaving them out is
                 // how you record paying purely on someone else's behalf.
-                Text("Include whoever shares the cost. Leave the payer out if they were covering it for others.")
+                Text(.excludePayerSplitExplanation)
             } else {
                 // Says outright that the percentages don't add up to 100,
                 // because they don't — six people with one 51%-off fare comes
                 // to 549%. Without this the first reaction to that is that the
                 // app is broken, so the sentence points at the amounts, which
                 // *do* add up, as the thing to trust.
-                Text("100% is a full share — a 51%-off fare is 49%, and two people sharing one hotel room are 50% each. The amounts beside each name always add up to the total.")
+                Text(.percentageSplitExplanation)
             }
         }
     }

@@ -111,7 +111,7 @@ struct GroupListView: View {
                             Label("Dutch Unlimited", systemImage: "infinity")
                         }
                     } footer: {
-                        Text("One group is free. Unlock unlimited groups with a one-time purchase — joining other people's groups is always free.")
+                        Text(.pricingDescription)
                     }
                 }
             }
@@ -469,7 +469,7 @@ private struct GroupRow: View {
                     .foregroundStyle(.secondary)
 
             case .settled:
-                Text("Settled up")
+                Text(.settledUp)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
 
