@@ -91,7 +91,7 @@ struct GroupDetailView: View {
             await CloudSyncMonitor.shared.refresh()
             unclaimedJoiners = CloudIdentity.unclaimedJoiners(in: group)
         }
-        .navigationTitle(group.name ?? "Group")
+        .navigationTitle(group.name ?? String(localized: .unnamedGroup))
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 // Leftmost of the three: renaming and restyling is something
@@ -288,7 +288,7 @@ struct GroupDetailView: View {
             if contents.spendingCount > 0 {
                 ShareLink(
                     item: SharedSummary(summary: contents.summary),
-                    preview: SharePreview(group.name ?? "Group")
+                    preview: SharePreview(group.name ?? String(localized: .unnamedGroup))
                 ) {
                     Label("Share Summary", systemImage: "doc.plaintext")
                 }

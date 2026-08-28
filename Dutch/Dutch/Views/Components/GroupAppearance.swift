@@ -48,16 +48,16 @@ enum PaletteColor: String, CaseIterable, Identifiable {
 
     /// Named for VoiceOver, which otherwise has nothing at all to say about a
     /// grid of coloured circles.
-    var label: LocalizedStringKey {
+    var label: LocalizedStringResource {
         switch self {
-        case .blue: "Blue"
-        case .teal: "Teal"
-        case .indigo: "Indigo"
-        case .purple: "Purple"
-        case .pink: "Pink"
-        case .orange: "Orange"
-        case .brown: "Brown"
-        case .gray: "Grey"
+        case .blue: .colourBlue
+        case .teal: .colourTeal
+        case .indigo: .colourIndigo
+        case .purple: .colourPurple
+        case .pink: .colourPink
+        case .orange: .colourOrange
+        case .brown: .colourBrown
+        case .gray: .colourGrey
         }
     }
 }
@@ -115,32 +115,32 @@ enum GroupSymbol: String, CaseIterable, Identifiable {
 
     /// Spelled out for VoiceOver. Without it the picker is two dozen buttons
     /// announced as "fork.knife", read one dotted component at a time.
-    var label: LocalizedStringKey {
+    var label: LocalizedStringResource {
         switch self {
-        case .airplane: "Plane"
-        case .car: "Car"
-        case .tram: "Tram"
-        case .ferry: "Ferry"
-        case .suitcase: "Suitcase"
-        case .map: "Map"
-        case .tent: "Tent"
-        case .beach: "Beach"
-        case .mountains: "Mountains"
-        case .snow: "Snow"
-        case .leaf: "Leaf"
-        case .paw: "Paw print"
-        case .house: "House"
-        case .key: "Key"
-        case .cart: "Shopping cart"
-        case .bag: "Bag"
-        case .bulb: "Lightbulb"
-        case .briefcase: "Briefcase"
-        case .forkKnife: "Restaurant"
-        case .coffee: "Coffee"
-        case .wine: "Wine"
-        case .cake: "Cake"
-        case .music: "Music"
-        case .games: "Games"
+        case .airplane: .symbolPlane
+        case .car: .symbolCar
+        case .tram: .symbolTram
+        case .ferry: .symbolFerry
+        case .suitcase: .symbolSuitcase
+        case .map: .symbolMap
+        case .tent: .symbolTent
+        case .beach: .symbolBeach
+        case .mountains: .symbolMountains
+        case .snow: .symbolSnow
+        case .leaf: .symbolLeaf
+        case .paw: .symbolPawPrint
+        case .house: .symbolHouse
+        case .key: .symbolKey
+        case .cart: .symbolShoppingCart
+        case .bag: .symbolBag
+        case .bulb: .symbolLightbulb
+        case .briefcase: .symbolBriefcase
+        case .forkKnife: .symbolRestaurant
+        case .coffee: .symbolCoffee
+        case .wine: .symbolWine
+        case .cake: .symbolCake
+        case .music: .symbolMusic
+        case .games: .symbolGames
         }
     }
 }

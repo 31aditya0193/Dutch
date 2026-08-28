@@ -183,7 +183,7 @@ struct SettingsView: View {
                 Label("Licence — MPL 2.0", systemImage: "doc.text")
             }
             Link(destination: URL(string: "mailto:dutch@smigi.net")!) {
-                Label("Contact", systemImage: "envelope")
+                Label(.contactLink, systemImage: "envelope")
             }
         } header: {
             Text(.about)

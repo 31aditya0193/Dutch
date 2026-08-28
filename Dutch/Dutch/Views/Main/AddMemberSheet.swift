@@ -24,7 +24,7 @@ struct AddMemberSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $name)
+                TextField(String(localized: .memberName), text: $name)
                     .focused($nameFocused)
                     .textContentType(.givenName)
                     .textInputAutocapitalization(.words)
@@ -38,7 +38,7 @@ struct AddMemberSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add", action: add)
+                    Button(.addMemberButton, action: add)
                         .disabled(trimmedName.isEmpty)
                 }
             }

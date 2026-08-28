@@ -20,6 +20,11 @@ struct ShareGroupView: View {
 
     @State private var phase: Phase = .preparing
     @State private var showingInviteSheet = false
+    @State private var showingAppStoreCode = false
+    /// Built on first disclosure rather than alongside the join code, because
+    /// most invitations are shown to people who already have the app and would
+    /// never pay for it. Cached here so collapsing and reopening is free.
+    @State private var appStoreCode: UIImage?
 
     private enum Phase {
         case preparing
@@ -31,6 +36,21 @@ struct ShareGroupView: View {
         case ready(share: CKShare, container: CKContainer, qrCode: UIImage?)
         case failed(String)
     }
+
+    /// The App Store listing, encoded into the code somebody without Dutch
+    /// scans.
+    ///
+    /// Deliberately Apple's own URL and not a link through `dutch.smigi.net`.
+    /// A wrapper on our domain could have carried the share token as well and
+    /// made one code do both jobs — but it would put a lapsed renewal or a
+    /// misconfigured redirect between two people at a table and the group they
+    /// are trying to join. Nothing about this invitation depends on
+    /// infrastructure we own, and that is worth more than a second of the
+    /// guest's time.
+    ///
+    /// The numeric id is the stable form: the slug in a listing URL follows the
+    /// app's name, so it changes if the name ever does.
+    private static let appStoreURL = URL(string: "https://apps.apple.com/app/id6795190862")
 
     var body: some View {
         NavigationStack {
@@ -128,6 +148,8 @@ struct ShareGroupView: View {
                 .controlSize(.large)
                 .padding(.horizontal)
 
+                appStoreDisclosure(share: share)
+
                 // Told from the share's real permission, not from what the app
                 // asked for. A group made by an older build — or one the owner
                 // switched back to invitation-only — still shows a QR code,
@@ -153,6 +175,90 @@ struct ShareGroupView: View {
         .sheet(isPresented: $showingInviteSheet) {
             CloudSharingSheet(share: share, container: container)
             .ignoresSafeArea()
+        }
+    }
+
+    // MARK: - App Store code
+
+    /// The other half of an invitation: somebody at the table who hasn't got
+    /// Dutch yet.
+    ///
+    /// This is not a convenience. Tested on an iPhone with Dutch deleted,
+    /// 2026-08-28: scanning the join code opens Safari on the bare
+    /// `icloud.com/share/…` page, and that page offers **no route to the App
+    /// Store**. It is a dead end — the guest has a URL, no app, and nothing to
+    /// tap. Without the code below there is no path from "someone showed me a
+    /// QR" to "I have Dutch installed" that doesn't involve searching the store
+    /// by name, which is exactly what doesn't work for an app called Dutch.
+    ///
+    /// The `CKSharingSupported` note in CLAUDE.md describes a *different*
+    /// situation — app installed but not registered as a handler, where iOS
+    /// knew which app the container belonged to and could offer the store.
+    /// Delete the app and that mapping goes with it. Don't infer one case from
+    /// the other; this was assumed and it was wrong.
+    ///
+    /// Collapsed, smaller, and captioned on purpose. Two QR codes of the same
+    /// size on one screen are indistinguishable at arm's length, and a host
+    /// holding up the wrong one sends the whole table to the App Store while
+    /// saying "scan this to join".
+    @ViewBuilder
+    private func appStoreDisclosure(share: CKShare) -> some View {
+        VStack(spacing: 16) {
+            Button {
+                withAnimation(.snappy) { showingAppStoreCode.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(.appStoreCodeDisclosure)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.semibold))
+                        .rotationEffect(.degrees(showingAppStoreCode ? 180 : 0))
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+
+            if showingAppStoreCode {
+                VStack(spacing: 12) {
+                    if let appStoreCode {
+                        Image(uiImage: appStoreCode)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 150, height: 150)
+                            .padding(12)
+                            // White in both appearances for the same reason the
+                            // join code is — see above.
+                            .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .accessibilityLabel(Text(.appStoreCodeAccessibility))
+                    } else {
+                        // Matches the code's footprint exactly, so disclosing
+                        // doesn't shove the caption down a second time when the
+                        // image lands.
+                        ProgressView()
+                            .frame(width: 174, height: 174)
+                    }
+
+                    Text(.appStoreCodeCaption)
+                        .font(.footnote.weight(.medium))
+
+                    Group {
+                        if share.publicPermission == .none {
+                            Text(.appStoreCodeInvitationInstructions)
+                        } else {
+                            Text(.appStoreCodeInstructions)
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                }
+                .task {
+                    guard appStoreCode == nil else { return }
+                    appStoreCode = await QRCodeGenerator.image(for: Self.appStoreURL)
+                }
+                .transition(.opacity)
+            }
         }
     }
 

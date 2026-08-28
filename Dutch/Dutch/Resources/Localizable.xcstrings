@@ -505,16 +505,6 @@
         }
       }
     },
-    "%lld%%" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld%%"
-          }
-        }
-      }
-    },
     "0" : {
       "localizations" : {
         "pl" : {
@@ -533,16 +523,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 %@ ="
-          }
-        }
-      }
-    },
-    "Add" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dodaj"
           }
         }
       }
@@ -653,66 +633,6 @@
         }
       }
     },
-    "Bag" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Torba"
-          }
-        }
-      }
-    },
-    "Beach" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plaża"
-          }
-        }
-      }
-    },
-    "Blue" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Niebieski"
-          }
-        }
-      }
-    },
-    "Briefcase" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Teczka"
-          }
-        }
-      }
-    },
-    "Brown" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Brązowy"
-          }
-        }
-      }
-    },
-    "Cake" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tort"
-          }
-        }
-      }
-    },
     "Can't Share This Group" : {
       "localizations" : {
         "pl" : {
@@ -729,16 +649,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Anuluj"
-          }
-        }
-      }
-    },
-    "Car" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Samochód"
           }
         }
       }
@@ -783,32 +693,12 @@
         }
       }
     },
-    "Coffee" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kawa"
-          }
-        }
-      }
-    },
     "Colour" : {
       "localizations" : {
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kolor"
-          }
-        }
-      }
-    },
-    "Contact" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontakt"
           }
         }
       }
@@ -983,16 +873,6 @@
         }
       }
     },
-    "Everyone" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wszyscy"
-          }
-        }
-      }
-    },
     "Everyone is settled up." : {
       "localizations" : {
         "pl" : {
@@ -1023,36 +903,6 @@
         }
       }
     },
-    "Ferry" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prom"
-          }
-        }
-      }
-    },
-    "Games" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gry"
-          }
-        }
-      }
-    },
-    "Grey" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Szary"
-          }
-        }
-      }
-    },
     "Group" : {
       "localizations" : {
         "pl" : {
@@ -1069,16 +919,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nazwa grupy"
-          }
-        }
-      }
-    },
-    "House" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dom"
           }
         }
       }
@@ -1115,16 +955,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "W walucie grupy."
-          }
-        }
-      }
-    },
-    "Indigo" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Indygo"
           }
         }
       }
@@ -1179,52 +1009,12 @@
         }
       }
     },
-    "Key" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klucz"
-          }
-        }
-      }
-    },
-    "Leaf" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liść"
-          }
-        }
-      }
-    },
     "Licence — MPL 2.0" : {
       "localizations" : {
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Licencja — MPL 2.0"
-          }
-        }
-      }
-    },
-    "Lightbulb" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Żarówka"
-          }
-        }
-      }
-    },
-    "Map" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mapa"
           }
         }
       }
@@ -1281,36 +1071,6 @@
         }
       }
     },
-    "Mountains" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Góry"
-          }
-        }
-      }
-    },
-    "Music" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Muzyka"
-          }
-        }
-      }
-    },
-    "Name" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Imię"
-          }
-        }
-      }
-    },
     "New Expense" : {
       "localizations" : {
         "pl" : {
@@ -1357,16 +1117,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Brak wydatków"
-          }
-        }
-      }
-    },
-    "None" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nikt"
           }
         }
       }
@@ -1451,16 +1201,6 @@
         }
       }
     },
-    "Orange" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pomarańczowy"
-          }
-        }
-      }
-    },
     "Other…" : {
       "localizations" : {
         "pl" : {
@@ -1487,46 +1227,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zapłacone przez"
-          }
-        }
-      }
-    },
-    "Paw print" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Łapa"
-          }
-        }
-      }
-    },
-    "Percent" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Procent"
-          }
-        }
-      }
-    },
-    "Pink" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Różowy"
-          }
-        }
-      }
-    },
-    "Plane" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Samolot"
           }
         }
       }
@@ -1567,16 +1267,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zakupy są wyłączone na tym urządzeniu. Sprawdź ograniczenia w Czasie przed ekranem."
-          }
-        }
-      }
-    },
-    "Purple" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fioletowy"
           }
         }
       }
@@ -1643,16 +1333,6 @@
         }
       }
     },
-    "Restaurant" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restauracja"
-          }
-        }
-      }
-    },
     "Restore Purchases" : {
       "localizations" : {
         "pl" : {
@@ -1679,16 +1359,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Podaje Twój bilans w grupie."
-          }
-        }
-      }
-    },
-    "Set" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ustaw"
           }
         }
       }
@@ -1763,16 +1433,6 @@
         }
       }
     },
-    "Shopping cart" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wózek sklepowy"
-          }
-        }
-      }
-    },
     "Shows sync details" : {
       "localizations" : {
         "pl" : {
@@ -1803,16 +1463,6 @@
         }
       }
     },
-    "Snow" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Śnieg"
-          }
-        }
-      }
-    },
     "Someone" : {
       "localizations" : {
         "pl" : {
@@ -1833,42 +1483,12 @@
         }
       }
     },
-    "Suitcase" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Walizka"
-          }
-        }
-      }
-    },
     "Symbol" : {
       "localizations" : {
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Symbol"
-          }
-        }
-      }
-    },
-    "Teal" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Morski"
-          }
-        }
-      }
-    },
-    "Tent" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Namiot"
           }
         }
       }
@@ -2069,16 +1689,6 @@
         }
       }
     },
-    "Tram" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tramwaj"
-          }
-        }
-      }
-    },
     "Try Again" : {
       "localizations" : {
         "pl" : {
@@ -2187,16 +1797,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Za co"
-          }
-        }
-      }
-    },
-    "Wine" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wino"
           }
         }
       }
@@ -2310,6 +1910,23 @@
         }
       }
     },
+    "addMemberButton" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj"
+          }
+        }
+      }
+    },
     "addMembersFirst" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2388,6 +2005,91 @@
         }
       }
     },
+    "appStoreCodeAccessibility" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QR code to download Dutch from the App Store"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kod QR do pobrania Dutch z App Store"
+          }
+        }
+      }
+    },
+    "appStoreCodeCaption" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Dutch"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zainstaluj Dutch"
+          }
+        }
+      }
+    },
+    "appStoreCodeDisclosure" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store code"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kod do App Store"
+          }
+        }
+      }
+    },
+    "appStoreCodeInstructions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanning this opens Dutch on the App Store. Once it's installed, scan the group's code above to join."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeskanowanie tego kodu otwiera Dutch w App Store. Po zainstalowaniu zeskanuj kod grupy powyżej, aby dołączyć."
+          }
+        }
+      }
+    },
+    "appStoreCodeInvitationInstructions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanning this opens Dutch on the App Store. Once it's installed, open the invitation you were sent."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeskanowanie tego kodu otwiera Dutch w App Store. Po zainstalowaniu otwórz otrzymane zaproszenie."
+          }
+        }
+      }
+    },
     "appStoreUnreachable" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2422,6 +2124,159 @@
         }
       }
     },
+    "colourBlue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niebieski"
+          }
+        }
+      }
+    },
+    "colourBrown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brown"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brązowy"
+          }
+        }
+      }
+    },
+    "colourGrey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grey"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Szary"
+          }
+        }
+      }
+    },
+    "colourIndigo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indigo"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indygo"
+          }
+        }
+      }
+    },
+    "colourOrange" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orange"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pomarańczowy"
+          }
+        }
+      }
+    },
+    "colourPink" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pink"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Różowy"
+          }
+        }
+      }
+    },
+    "colourPurple" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purple"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fioletowy"
+          }
+        }
+      }
+    },
+    "colourTeal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teal"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morski"
+          }
+        }
+      }
+    },
+    "contactLink" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kontakt"
+          }
+        }
+      }
+    },
     "createOrJoinAGroup" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2435,6 +2290,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utwórz grupę albo dołącz za pomocą kodu QR, aby zacząć dzielić wydatki."
+          }
+        }
+      }
+    },
+    "customSharePercent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Percent"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Procent"
           }
         }
       }
@@ -2574,6 +2446,23 @@
         }
       }
     },
+    "memberName" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imię"
+          }
+        }
+      }
+    },
     "members" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2597,13 +2486,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anyone who scans this code can join the group. Use Invite People instead to choose people yourself."
+            "value" : "Anyone with Dutch installed can scan this to join. If someone hasn't got the app yet, show them the App Store code first. Use Invite People to choose people yourself instead."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Każdy, kto zeskanuje ten kod, może dołączyć do grupy. Użyj opcji „Zaproś ludzi”, jeśli chcesz wybrać ich samodzielnie."
+            "value" : "Każdy, kto ma zainstalowany Dutch, może zeskanować ten kod, aby dołączyć. Jeśli ktoś nie ma jeszcze aplikacji, pokaż mu najpierw kod do App Store. Użyj opcji „Zaproś ludzi”, jeśli chcesz wybrać ich samodzielnie."
           }
         }
       }
@@ -2805,6 +2694,57 @@
         }
       }
     },
+    "selectEveryone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wszyscy"
+          }
+        }
+      }
+    },
+    "selectNone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nikt"
+          }
+        }
+      }
+    },
+    "setCustomShare" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ustaw"
+          }
+        }
+      }
+    },
     "settleUp" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2900,6 +2840,414 @@
         }
       }
     },
+    "symbolBag" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bag"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torba"
+          }
+        }
+      }
+    },
+    "symbolBeach" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beach"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plaża"
+          }
+        }
+      }
+    },
+    "symbolBriefcase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Briefcase"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teczka"
+          }
+        }
+      }
+    },
+    "symbolCake" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cake"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tort"
+          }
+        }
+      }
+    },
+    "symbolCar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Car"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Samochód"
+          }
+        }
+      }
+    },
+    "symbolCoffee" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coffee"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kawa"
+          }
+        }
+      }
+    },
+    "symbolFerry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ferry"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prom"
+          }
+        }
+      }
+    },
+    "symbolGames" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Games"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gry"
+          }
+        }
+      }
+    },
+    "symbolHouse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "House"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dom"
+          }
+        }
+      }
+    },
+    "symbolKey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klucz"
+          }
+        }
+      }
+    },
+    "symbolLeaf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leaf"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liść"
+          }
+        }
+      }
+    },
+    "symbolLightbulb" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lightbulb"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Żarówka"
+          }
+        }
+      }
+    },
+    "symbolMap" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Map"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mapa"
+          }
+        }
+      }
+    },
+    "symbolMountains" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mountains"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Góry"
+          }
+        }
+      }
+    },
+    "symbolMusic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Music"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muzyka"
+          }
+        }
+      }
+    },
+    "symbolPawPrint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paw print"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łapa"
+          }
+        }
+      }
+    },
+    "symbolPlane" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plane"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Samolot"
+          }
+        }
+      }
+    },
+    "symbolRestaurant" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurant"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restauracja"
+          }
+        }
+      }
+    },
+    "symbolShoppingCart" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shopping cart"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wózek sklepowy"
+          }
+        }
+      }
+    },
+    "symbolSnow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snow"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Śnieg"
+          }
+        }
+      }
+    },
+    "symbolSuitcase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suitcase"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walizka"
+          }
+        }
+      }
+    },
+    "symbolTent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tent"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Namiot"
+          }
+        }
+      }
+    },
+    "symbolTram" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tram"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tramwaj"
+          }
+        }
+      }
+    },
+    "symbolWine" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wine"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wino"
+          }
+        }
+      }
+    },
     "the group" : {
       "localizations" : {
         "pl" : {
@@ -2943,6 +3291,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wydano łącznie"
+          }
+        }
+      }
+    },
+    "unnamedGroup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grupa"
           }
         }
       }

@@ -18,8 +18,12 @@ extension GroupSummaryStrings {
     /// elsewhere in the app. Word order and plural agreement travel with the
     /// translation — `transferLine` may put the amount before either name, and
     /// the counts take as many plural forms as the language needs.
+    ///
+    /// `fallbackTitle` is the exception: it reads a symbolic key, because the
+    /// English word "Group" is also the App Intents parameter label, and one
+    /// shared key would force a single Polish translation to serve both.
     static let localized = GroupSummaryStrings(
-        fallbackTitle: String(localized: "Group"),
+        fallbackTitle: String(localized: .unnamedGroup),
         untitled: String(localized: "Untitled"),
         noExpensesYet: String(localized: "No expenses yet"),
         settleUpHeading: String(localized: "Settle up"),

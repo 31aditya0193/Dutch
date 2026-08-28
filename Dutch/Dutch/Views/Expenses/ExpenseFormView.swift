@@ -288,10 +288,10 @@ struct ExpenseFormView: View {
             // haptic engine renders as the one tap it was.
             .sensoryFeedback(.selection, trigger: selectedPayer)
             .alert("Custom Share", isPresented: customBinding) {
-                TextField("Percent", text: $customText)
+                TextField(String(localized: .customSharePercent), text: $customText)
                     .keyboardType(.numberPad)
                 Button("Cancel", role: .cancel) { customTarget = nil }
-                Button("Set", action: applyCustomShare)
+                Button(.setCustomShare, action: applyCustomShare)
             } message: {
                 Text(.partialPercentageExplanation)
             }
@@ -479,7 +479,7 @@ struct ExpenseFormView: View {
                     // Splitting evenly across everyone is the common case, and
                     // it used to cost one tap per member.
                     let everyone = allSelected(in: members)
-                    Button(everyone ? "None" : "Everyone") {
+                    Button(everyone ? .selectNone : .selectEveryone) {
                         withAnimation(.snappy) {
                             selectedParticipants = everyone ? [] : Set(members)
                         }
@@ -888,16 +888,16 @@ private struct MemberSplitRow: View {
                             onShareChange(preset)
                         } label: {
                             if preset == share {
-                                Label("\(preset)%", systemImage: "checkmark")
+                                Label(preset.formatted(.percent), systemImage: "checkmark")
                             } else {
-                                Text("\(preset)%")
+                                Text(preset.formatted(.percent))
                             }
                         }
                     }
                     Divider()
                     Button("Other…", action: onCustomShare)
                 } label: {
-                    Text("\(share)%")
+                    Text(share.formatted(.percent))
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(share == Share.full ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
                         .contentTransition(.numericText())

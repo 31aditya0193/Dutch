@@ -68,7 +68,7 @@ struct EditMemberSheet: View {
                         PersonIcon(avatar, size: 52)
                             .animation(.snappy, value: color)
 
-                        TextField("Name", text: $name)
+                        TextField(String(localized: .memberName), text: $name)
                             .textContentType(.givenName)
                             .textInputAutocapitalization(.words)
                             .submitLabel(.done)
