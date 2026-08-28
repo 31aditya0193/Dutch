@@ -458,6 +458,66 @@ one is now true — but claiming it is a metadata change, not a build.
 before and after, the `__TEXT` segment padding absorbing all of it. No model
 change.*
 
+### Tip, tax and service charge
+
+The tractable half of "scan a receipt with the service charge split out": one
+percentage added on top of the entered amount, applied before the split, echoed
+back in the same *saves as* line that already reports a foreign conversion. It
+is a restaurant feature in an app whose commonest expense is dinner, and it
+needs no camera at all.
+
+**One percentage, not three named ones.** The moment there is a separate tip and
+a separate tax, somebody has to answer whether the tip is computed on the
+pre-tax or the post-tax total — a question real people argue about at real
+tables, and this app exists to delete that arithmetic rather than to host it.
+One figure covers a European service charge, a UK discretionary 12.5% and a US
+tip; anyone wanting two of them adds them together or types the final total.
+
+**A percentage and never an amount.** "Make it 60" is the same trap as **12**: a
+single field where `50` might mean 50% or 50 złoty. That duality is refused
+there and is refused here too, so a flat-amount tip waits and reuses whatever
+control **12** lands on rather than inventing a second answer now.
+
+**It multiplies the figure as typed, before any conversion**, which is the one
+decision the code actually forced. An expense is rounded to minor units exactly
+once — in `Money.init(amount:)` for an ordinary expense, `ForeignAmount.converted`
+for one paid abroad — and that single rounding is what keeps `Money.split`'s
+promise that the shares add back up to the total. Scaling a `Money` instead
+would round twice, and a three-way split of a tipped bill could miss its own
+total by a cent. `TipRateTests.tippedBillSplitsExactly` is the guard.
+
+It also means a tipped foreign bill records what was really handed over — 1 650
+HUF, not 1 500 with a euro adjustment bolted on afterwards. That falls out of
+`ForeignAmount.amount` being a `Double` in major units, which it is because a
+third of the world's currencies have no minor unit.
+
+**The cap is 100%, and it is there for the typo rather than the tipper.** A
+missed decimal point turns 15% into 1500% and a 47.30 dinner into 756.80, which
+is a plausible-looking number nobody catches until the balances are wrong.
+Negative is refused for a related reason: a percentage that *reduces* a bill is
+a discount, a different feature wearing this one's control, and a stray minus
+would quietly lower a total everybody else is splitting.
+
+**Nothing is stored.** The tip folds into `amount`, so there is no model change
+and no CloudKit promote — but unlike the exchange rate, which keeps
+`originalAmount` as provenance, this keeps none. Reopening an expense shows the
+tipped figure with the tip back at *None*: lossless if you re-save, but the tip
+cannot be adjusted afterwards and no row can read *"incl. 15%"*. An optional
+`tipPercent` is the obvious passenger for the version 7 that **12** and **16**
+will need anyway.
+
+*Two things this turned up, both bigger than the feature.* The `saves as` footer
+had **never been localized** — `savesAsSummary` returns a `String`, and
+`Text(_: String)` is the non-localizing initializer, so every Polish phone read
+"Saves as 47,30 zł" in English with nothing anywhere to say so. It is the exact
+failure the Localization section already names, and it still got missed, which
+is worth knowing about the rest of the codebase. And the fix for it nearly
+shipped broken in a way described under **Adding the next language** below.
+
+*Cost: 10.5 KB of `__text` and 1.2 KB of strings across both languages. The
+archive did not move — 1660 KB before and after, `__TEXT` segment padding
+absorbing all of it. No model change.*
+
 ---
 
 ## Next
@@ -556,24 +616,6 @@ already makes the second one cheap through **Duplicate**. So this buys tidiness
 in the expense log rather than a capability, which puts it behind **12**, whose
 per-person amount control is the same shape of UI on the other side of the bill.
 
-### 17. Tip, tax and service charge
-
-The tractable half of "scan a receipt with the service charge split out". A
-percentage added on top of an entered amount, applied before the split, shown in
-the same *saves as* line that already echoes a foreign conversion back. It is a
-restaurant feature in an app whose commonest expense is dinner, and it needs no
-camera at all.
-
-The other half — reading line items off a photographed receipt — is a different
-proposition and is not scheduled. `VisionKit` ships with the OS so it costs
-nothing in the bundle, and the app already has a camera path in
-`QRScannerView`; the problem is that itemised parsing across real receipt
-layouts is the classic feature that is 80% right and therefore slower than
-typing. Scanning the *total* alone is not worth a camera permission prompt:
-typing 47.30 is four taps.
-
-Nothing here stores an image, so it does not reopen **Receipt photos** below.
-
 ---
 
 ## Waiting on a decision, not on space
@@ -607,7 +649,8 @@ Three things stand in front of it:
 - **The permission prompt arrives at the worst possible moment.** The first
   expense is entered at the table, and the app's whole pitch is that nobody has
   to do anything before the coffee gets cold. The same trade was already
-  refused under **17** — scanning a receipt total is not worth a camera prompt.
+  refused under **Tip, tax and service charge** above — scanning a receipt
+  total is not worth a camera prompt.
   This one buys more than that one did, because a name is more typing than a
   number, but it needs the same care: the prompt has to sit behind an explicit
   **Nearby** button that the user taps, never behind the form appearing.
@@ -844,6 +887,18 @@ with three mechanical notes that are easy to lose:
 
   It rewrites `Localizable.xcstrings` in place. Afterwards, check for entries
   with no translation and for `extractionState: stale` — both are zero today.
+
+- **A key written by hand has to match what the extractor emits, exactly.**
+  Adding an entry to the catalog yourself is fine for a symbolic key and a trap
+  for a literal one with more than one placeholder. The *key* is non-positional
+  — `"%@ at %@"` — while the *translation* uses positional specifiers,
+  `"%1$@ po kursie %2$@"`. Writing the key positionally instead produces an
+  entry that looks perfect in the catalog, ships inside the built
+  `pl.lproj/Localizable.strings`, and is never once looked up, because the
+  runtime asks for a key that isn't there. The string stays English and nothing
+  reports it. Caught on 2026-08-28 by running the export below and finding the
+  invented key marked `extractionState: stale` beside the real one with no
+  translation. **Export after hand-editing, then check for `stale`.**
 
 - **Editing the catalog with a script needs Xcode's formatting**, which is
   `indent=2` with a space before the colon. A plain JSON dump reformats all

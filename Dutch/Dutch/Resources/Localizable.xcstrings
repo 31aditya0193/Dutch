@@ -43,6 +43,23 @@
         }
       }
     },
+    "%@ at %@" : {
+      "comment" : "The amount as it was paid abroad and the rate it was converted at, e.g. '198,50 zł at 4.4111'.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ at %2$@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ po kursie %2$@"
+          }
+        }
+      }
+    },
     "%@ has no members yet. Add one in Dutch first." : {
       "localizations" : {
         "pl" : {
@@ -123,6 +140,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Współdzielone wydatki (%@) zostaną podzielone między pozostałe osoby, więc bilanse się zmienią."
+          }
+        }
+      }
+    },
+    "%@ tip included" : {
+      "comment" : "Notes that the stored amount already has a tip in it. The placeholder is a formatted percentage, e.g. '15%'.",
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "w tym %@ napiwku"
           }
         }
       }
@@ -435,36 +463,6 @@
     },
     "%lld people" : {
       "localizations" : {
-        "pl" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld osoba"
-                }
-              },
-              "few" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld osoby"
-                }
-              },
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld osób"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld osoby"
-                }
-              }
-            }
-          }
-        },
         "en" : {
           "variations" : {
             "plural" : {
@@ -478,6 +476,36 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld people"
+                }
+              }
+            }
+          }
+        },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld osoby"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld osób"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld osoba"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld osoby"
                 }
               }
             }
@@ -763,6 +791,16 @@
         }
       }
     },
+    "Custom Tip" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Własny napiwek"
+          }
+        }
+      }
+    },
     "Defaults to the group you opened last." : {
       "localizations" : {
         "pl" : {
@@ -869,6 +907,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edytuj członka"
+          }
+        }
+      }
+    },
+    "Enter the rate to convert this to %@." : {
+      "comment" : "Shown when a foreign amount has been typed but no exchange rate yet. The placeholder is the group's currency code.",
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Podaj kurs, aby przeliczyć to na %@."
           }
         }
       }
@@ -1121,6 +1170,16 @@
         }
       }
     },
+    "None" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brak"
+          }
+        }
+      }
+    },
     "Not Me" : {
       "localizations" : {
         "pl" : {
@@ -1359,6 +1418,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zapisz"
+          }
+        }
+      }
+    },
+    "Saves as %@" : {
+      "comment" : "The amount that will actually be stored, in the group's currency.",
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisze się jako %@"
           }
         }
       }
@@ -1685,6 +1755,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "To nie zmieni bilansu nikogo innego."
+          }
+        }
+      }
+    },
+    "Tip" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Napiwek"
           }
         }
       }
@@ -2304,6 +2384,40 @@
         }
       }
     },
+    "customTip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Własny…"
+          }
+        }
+      }
+    },
+    "customTipPercent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Percent"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Procent"
+          }
+        }
+      }
+    },
     "dutchPrivacyDisclosure" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2739,6 +2853,23 @@
       }
     },
     "setCustomShare" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ustaw"
+          }
+        }
+      }
+    },
+    "setCustomTip" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -3284,6 +3415,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "tego członka"
+          }
+        }
+      }
+    },
+    "tipExplanation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added on top of the amount before it is split, so everyone shares it. Up to 100%."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doliczany do kwoty przed podziałem, więc dzielą go wszyscy. Maksymalnie 100%."
           }
         }
       }

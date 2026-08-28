@@ -73,6 +73,17 @@ struct ExpenseFormView: View {
     /// The member whose share is being typed in by hand, and the text of it.
     @State private var customTarget: Person?
     @State private var customText = ""
+    /// Tip, tax or service charge, as a percentage of the entered amount.
+    ///
+    /// A plain `Double` and not a `TipRate`, because the menu writes to it
+    /// directly and `0` is a legal, meaningful value here — `tip` below turns
+    /// it into the checked type. Always starts at none, including on an edit
+    /// and on a duplicate: the tip is folded into the stored amount, so the
+    /// figure in the field above is already the tipped one, and re-offering a
+    /// percentage would apply it a second time.
+    @State private var tipPercent: Double = 0
+    @State private var showingCustomTip = false
+    @State private var customTipText = ""
     @State private var errorMessage: String?
     @FocusState private var amountFocused: Bool
 
@@ -295,6 +306,16 @@ struct ExpenseFormView: View {
             } message: {
                 Text(.partialPercentageExplanation)
             }
+            .alert("Custom Tip", isPresented: $showingCustomTip) {
+                // Decimal rather than number pad: 12.5% is a real service
+                // charge, and a number pad makes it unenterable.
+                TextField(String(localized: .customTipPercent), text: $customTipText)
+                    .keyboardType(.decimalPad)
+                Button("Cancel", role: .cancel) {}
+                Button(.setCustomTip, action: applyCustomTip)
+            } message: {
+                Text(.tipExplanation)
+            }
             .errorBanner($errorMessage)
             .task {
                 // The amount, not the title. The amount is the one field this
@@ -325,6 +346,7 @@ struct ExpenseFormView: View {
                 .accessibilityIdentifier("Title")
 
             amountRow
+            tipRow
             currencyRow
             rateRow
         } header: {
@@ -366,6 +388,78 @@ struct ExpenseFormView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
         }
+    }
+
+    /// The percentages offered before anyone has to type one.
+    ///
+    /// 12.5 earns its place: it is the standard discretionary service charge
+    /// printed on a UK restaurant bill, and it is the one common figure that a
+    /// round-numbers menu would force somebody to type by hand.
+    private static let tipPresets: [Double] = [5, 10, 12.5, 15, 20]
+
+    /// Formatted through `.percent` rather than by appending a literal `%`, so
+    /// the sign lands where the reader's locale puts it and the decimal
+    /// separator matches the amount field above.
+    private static func percentText(_ percent: Double) -> String {
+        (percent / 100).formatted(.percent.precision(.fractionLength(0 ... 2)))
+    }
+
+    /// Tip, tax or service charge — one percentage added on top of the amount
+    /// before it is split, so everybody shares it.
+    ///
+    /// A menu rather than a field, because on the commonest path this is one
+    /// tap on a number somebody already knows, and a keyboard for "15" is three
+    /// too many. Always visible, unlike `rateRow`: a tip applies to any group
+    /// in any currency, and a control that only appears once it is relevant is
+    /// one nobody discovers. It reads *None* until it is used, which is also
+    /// what it must default to — a remembered 15% silently inflating the next
+    /// bill is the one failure here nobody would catch.
+    private var tipRow: some View {
+        Menu {
+            Button("None") { tipPercent = 0 }
+
+            ForEach(Self.tipPresets, id: \.self) { percent in
+                Button(Self.percentText(percent)) { tipPercent = percent }
+            }
+
+            Divider()
+
+            Button(.customTip) {
+                customTipText = ""
+                showingCustomTip = true
+            }
+        } label: {
+            // Styled by hand, because a `Menu` tints its whole label with the
+            // accent colour and `LabeledContent` alone would then render both
+            // halves blue — unlike `currencyRow`, which is a `NavigationLink`
+            // and gets primary/secondary for free. Left alone it read as a
+            // button rather than a value, and it read that way even while it
+            // said *None*.
+            //
+            // So the colour carries the same meaning it does on the share menu
+            // below: secondary while this is at its default, tinted once the
+            // user has actually set something. Blue then means "there is a tip
+            // on this expense", which is worth noticing on a screen where the
+            // tip is folded into a total nothing else itemises.
+            LabeledContent {
+                Text(tip.isNone ? String(localized: "None") : Self.percentText(tipPercent))
+                    .foregroundStyle(
+                        tip.isNone ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint)
+                    )
+            } label: {
+                Text("Tip")
+                    .foregroundStyle(.primary)
+            }
+        }
+        .accessibilityIdentifier("Tip")
+    }
+
+    private func applyCustomTip() {
+        guard
+            let typed = Self.parseDecimal(customTipText),
+            let rate = TipRate(percent: typed)
+        else { return }
+        tipPercent = rate.percent
     }
 
     /// Lets an expense be entered in whatever was actually handed over, which
@@ -662,11 +756,30 @@ struct ExpenseFormView: View {
 
     private var parsedAmount: Double? { Self.parseDecimal(amountText) }
 
+    /// The tip as the checked type. An out-of-range `tipPercent` cannot arrive
+    /// here — the menu offers only valid values and `applyCustomTip` refuses
+    /// the rest — so falling back to `.none` is belt and braces rather than a
+    /// silent correction.
+    private var tip: TipRate { TipRate(percent: tipPercent) ?? .none }
+
+    /// The entered figure with the tip on top, which is what everything below
+    /// converts and stores.
+    ///
+    /// Applied here, in the currency the money was actually handed over in and
+    /// before any conversion, for the reason spelled out in `TipRate.applied`:
+    /// the amount is rounded to minor units exactly once, and tipping after
+    /// that would round twice and let a split miss its own total by a cent. It
+    /// also means a tipped foreign bill records what was really paid — 1 650
+    /// HUF, not 1 500 with a euro adjustment bolted on.
+    private var tippedAmount: Double? {
+        parsedAmount.map(tip.applied(to:))
+    }
+
     /// The foreign-currency figure being entered, once it is complete enough to
     /// convert. `nil` while the rate is missing or unusable — `ForeignAmount`
     /// rejects a zero rate rather than dividing by it.
     private var foreignAmount: ForeignAmount? {
-        guard isForeign, let amount = parsedAmount, let rate = Self.parseDecimal(rateText) else {
+        guard isForeign, let amount = tippedAmount, let rate = Self.parseDecimal(rateText) else {
             return nil
         }
         return ForeignAmount(amount: amount, currencyCode: currencyCode, rate: rate)
@@ -676,24 +789,60 @@ struct ExpenseFormView: View {
     /// exactly once, here.
     private var finalAmount: Money? {
         if isForeign { return foreignAmount?.converted }
-        return parsedAmount.map(Money.init(amount:))
+        return tippedAmount.map(Money.init(amount:))
     }
 
+    /// Echoes back exactly what will be stored, so a mis-parsed separator, a
+    /// rate entered upside down or a tip nobody meant to leave on is catchable
+    /// before saving rather than after.
+    ///
+    /// Every clause goes through `String(localized:)`. This property returns a
+    /// `String`, and `Text(_: String)` is the *non-localizing* initializer — so
+    /// an ordinary interpolated literal here reaches a Polish phone in English
+    /// with no warning anywhere, which is what happened to this whole footer
+    /// until 2026-08-28. Assembled from parts rather than one long format
+    /// string so a translator gets three short sentences instead of one with
+    /// four placeholders in it, and so the tip clause can simply be absent.
     private var savesAsSummary: String? {
         guard let amount = finalAmount else {
             // Otherwise a foreign expense with no rate yet just leaves Save
             // greyed out with nothing on screen saying which field is missing.
             if isForeign, parsedAmount != nil {
-                return "Enter the rate to convert this to \(group.currency)."
+                return String(
+                    localized: "Enter the rate to convert this to \(group.currency).",
+                    comment: "Shown when a foreign amount has been typed but no exchange rate yet. The placeholder is the group's currency code."
+                )
             }
             return nil
         }
 
-        let stored = "Saves as \(amount.formatted(in: group))"
-        guard let foreign = foreignAmount else { return stored }
+        var parts = [
+            String(
+                localized: "Saves as \(amount.formatted(in: group))",
+                comment: "The amount that will actually be stored, in the group's currency."
+            )
+        ]
 
-        let rate = foreign.rate.formatted(.number.precision(.fractionLength(0 ... 6)))
-        return "\(stored) · \(foreign.formatted()) at \(rate)"
+        if let foreign = foreignAmount {
+            let rate = foreign.rate.formatted(.number.precision(.fractionLength(0 ... 6)))
+            parts.append(
+                String(
+                    localized: "\(foreign.formatted()) at \(rate)",
+                    comment: "The amount as it was paid abroad and the rate it was converted at, e.g. '198,50 zł at 4.4111'."
+                )
+            )
+        }
+
+        if !tip.isNone {
+            parts.append(
+                String(
+                    localized: "\(Self.percentText(tipPercent)) tip included",
+                    comment: "Notes that the stored amount already has a tip in it. The placeholder is a formatted percentage, e.g. '15%'."
+                )
+            )
+        }
+
+        return parts.joined(separator: " · ")
     }
 
     /// A title is deliberately not required.

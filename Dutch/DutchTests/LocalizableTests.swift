@@ -36,14 +36,18 @@ struct LocalizableTests {
             "pricingDescription",
             "appStoreUnreachable",
             "oneTimePurchase",
-            "nothingSpentYet"
+            "nothingSpentYet",
+            "customTip",
+            "customTipPercent",
+            "setCustomTip",
+            "tipExplanation"
         ]
 
         let expectedTranslations = [
             "About",
             "Add members first.",
             "Amount",
-            "Anyone who scans this code can join the group. Use Invite People instead to choose people yourself.",
+            "Anyone with Dutch installed can scan this to join. If someone hasn't got the app yet, show them the App Store code first. Use Invite People to choose people yourself instead.",
             "Check this matches on the other device.",
             "Create a group to start splitting expenses, or join one with a QR code.",
             "Dutch keeps your groups in your own iCloud account. Nothing is stored on any server of ours, because there isn't one.",
@@ -62,7 +66,11 @@ struct LocalizableTests {
             "One group is free. Unlock unlimited groups with a one-time purchase — joining other people's groups is always free.",
             "The App Store couldn't be reached.",
             "One-time purchase.",
-            "Nothing spent yet"
+            "Nothing spent yet",
+            "Custom…",
+            "Percent",
+            "Set",
+            "Added on top of the amount before it is split, so everyone shares it. Up to 100%."
         ]
 
         for idx in keys.indices {
