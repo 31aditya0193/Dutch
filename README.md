@@ -10,14 +10,16 @@ No accounts. No servers. No trackers. Under 2 MB.
 
 [![Download on the App Store](https://img.shields.io/badge/App_Store-Download-0D96F6?style=for-the-badge&logo=apple&logoColor=white)](https://apps.apple.com/app/id6795190862)
 [![Website](https://img.shields.io/badge/dutch.smigi.net-Website-1f2937?style=for-the-badge)](https://dutch.smigi.net)
+[![Po polsku](https://img.shields.io/badge/dutch.smigi.net%2Fpl-Po_polsku-1f2937?style=for-the-badge)](https://dutch.smigi.net/pl/)
 
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL--2.0-brightgreen.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-iOS%2017%2B-lightgrey.svg)](#-building--testing)
+[![Languages](https://img.shields.io/badge/languages-English%20%C2%B7%20Polski-629dff.svg)](#what-it-does)
 [![Dependencies](https://img.shields.io/badge/dependencies-zero-success.svg)](#-technology-stack-pure-apple)
 [![DutchKit tests](https://github.com/lakafior/Dutch/actions/workflows/ci.yml/badge.svg)](https://github.com/lakafior/Dutch/actions/workflows/ci.yml)
 
 <img src="website/assets/shot-list.jpg" width="30%" alt="The Dutch group list, showing eight groups with the balance owed or owed to you in each.">
-<img src="website/assets/shot-detail.jpg" width="30%" alt="A group's detail screen, showing total spent, each member's balance, and the settle-up list.">
+<img src="website/assets/shot-detail.jpg" width="30%" alt="A group's detail screen: total spent, each member's balance, and the two payments that settle the group.">
 <img src="website/assets/shot-share.jpg" width="30%" alt="The share screen, showing a QR code and the group's word sequence.">
 
 </div>
@@ -51,6 +53,7 @@ how few payments would clear it.**
 | **Spotlight and quick actions** | Search your groups from the Home Screen, or long-press the icon to add an expense to the one you were last in. |
 | **Told when it changes** | Optional notifications when somebody else adds an expense, so checking the balance isn't something you have to remember to do. Off until you turn them on. |
 | **Fully offline** | Everything is written to Core Data locally and syncs when the device reconnects. |
+| **English and Polish** | The whole app, including the summary you share with the group. Adding a language is a column in one string catalogue rather than a rewrite, so if you want yours, [say so](https://github.com/lakafior/Dutch/issues). |
 
 Where the app is going next, and what it deliberately won't do, is in
 [ROADMAP.md](ROADMAP.md).
@@ -200,6 +203,7 @@ exists.
 ```plaintext
 Dutch/                              # repository root
 ├── website/                        # the marketing site (static HTML, no build step)
+│   └── pl/                         # …and its Polish translation, cross-linked with hreflang
 └── Dutch/                          # ← open Dutch.xcworkspace from here
     ├── Dutch.xcworkspace           # the workspace (app + package)
     ├── Dutch.xcodeproj

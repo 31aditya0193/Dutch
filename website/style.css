@@ -90,6 +90,16 @@ nav { display: flex; gap: 20px; flex-wrap: wrap; }
 nav a { color: var(--body); text-decoration: none; font-size: .95rem; }
 nav a:hover { color: var(--ink); }
 
+/* The language switch. Set apart from the section links beside it: it changes
+   the whole site rather than moving down the page, and a reader scanning for
+   "Privacy" shouldn't have to read past a word in a language they don't want. */
+nav a.lang {
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: .85rem;
+}
+
 /* ---- hero ---- */
 
 .hero { padding: 76px 0 8px; }
