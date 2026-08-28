@@ -29,6 +29,16 @@ struct SettingsView: View {
     /// switch's own position, reconciled once the system has answered.
     @State private var wantsNotifications = false
 
+    /// Bound straight to the key, unlike `wantsNotifications` above: there is no
+    /// permission to ask for and nothing that can refuse, so the switch's
+    /// position *is* the setting. The suite is the app group's, because that is
+    /// where every other preference this app writes already lives.
+    @AppStorage(
+        ExpenseDefaults.reopenLastGroupKey,
+        store: PersistenceController.appGroupDefaults
+    )
+    private var reopensLastGroup = false
+
     @State private var isRequesting = false
     @State private var restoreMessage: String?
 
@@ -38,6 +48,7 @@ struct SettingsView: View {
                 if notifier.isAvailable {
                     notifications
                 }
+                launch
                 unlimited
                 about
             }
@@ -129,6 +140,21 @@ struct SettingsView: View {
             wantsNotifications = granted
         } else {
             notifier.disable()
+        }
+    }
+
+    // MARK: - Launch
+
+    /// Below notifications rather than above it: notifications are what people
+    /// open this screen for, and this is a preference you set once on the trip
+    /// where it matters. Purchase and About stay at the bottom where they were.
+    private var launch: some View {
+        Section {
+            Toggle("Open Last Group", isOn: $reopensLastGroup)
+        } header: {
+            Text(.launch)
+        } footer: {
+            Text(.reopenLastGroupExplanation)
         }
     }
 

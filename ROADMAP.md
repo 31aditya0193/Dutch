@@ -13,10 +13,11 @@ cost approximately nothing. What would actually breach 3 MB is bundled fonts,
 image assets, an embedded rate database, or CoreML. None of the work below needs
 any of those. Watch the asset catalog, not the code.
 
-**The app is 1552 KB as of 2026-08-20**, down from 2164 KB, which makes the 3 MB
-ceiling a formality and 2 MB a comfortable one. It reached 1252 KB on 2026-07-29
-through the four changes below, each measured by archiving rather than building,
-and has spent 300 KB since on notifications and the first-feedback batch:
+**The app is 1644 KB as of 2026-08-28**, down from 2164 KB, which makes the 3 MB
+ceiling a formality and 2 MB a close-run thing rather than a comfortable one. It
+reached 1252 KB on 2026-07-29 through the four changes below, each measured by
+archiving rather than building, and has spent 392 KB since on notifications, the
+first-feedback batch and Polish:
 
 | | saving |
 |---|---|
@@ -494,37 +495,297 @@ question underneath it, and is not settled here.
 
 *Cost: negative. One `Text`, one branch and one string removed. No model change.*
 
+---
+
+## Waiting on a decision, not on space
+
+These four were raised together, with the reasonable assumption that the size
+ceiling rules them out. Measured, it doesn't. Three of them cost approximately
+nothing in the bundle — CoreLocation and MapKit ship with the OS, and the
+country-to-currency mapping is already sitting in Foundation. The fourth costs
+432 KB, inside a budget with well over a megabyte of headroom.
+
+What actually gates them is a permission prompt, a network round trip, a model
+version and some layout work. So they are here rather than in **Next**: each has
+exactly one decision standing in front of it, and none of the decisions is about
+bytes.
+
+### 19. Prefill the title from where you are
+
+Asked for as: an empty title becomes the current location, and better still, a
+picker of the establishments nearby.
+
+That is two features wearing one coat, and only one of them is worth building.
+Reverse-geocoding to *Kraków* and dropping it in the title is close to
+worthless — the group is already called *Kraków Trip*, and every expense in it
+would carry the same word. The valuable half is the second one: the cafés and
+restaurants within a hundred metres, one tap, and the title reads *Café Camelot*.
+`MKLocalSearch` with a point-of-interest filter is how, and MapKit is system, so
+it costs nothing in the bundle.
+
+Three things stand in front of it:
+
+- **The permission prompt arrives at the worst possible moment.** The first
+  expense is entered at the table, and the app's whole pitch is that nobody has
+  to do anything before the coffee gets cold. The same trade was already
+  refused under **17** — scanning a receipt total is not worth a camera prompt.
+  This one buys more than that one did, because a name is more typing than a
+  number, but it needs the same care: the prompt has to sit behind an explicit
+  **Nearby** button that the user taps, never behind the form appearing.
+- **`MKLocalSearch` is a network call**, and the trip abroad is precisely where
+  roaming is off. It has to degrade to the plain text field that is there today,
+  quietly, without an error the user can do nothing about.
+- **The title is deliberately optional** (the reasoning is in `ExpenseFormView`).
+  Filling it in automatically whenever it is left empty reintroduces exactly
+  what that decision removed: a field the user now has to stop and check.
+
+So the shape is a **Nearby button, not a prefill** — which resolves the first
+objection and the third at once.
+
+*Cost: zero bytes; MapKit is system. One `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription`
+— a scalar key, so unlike `UIBackgroundModes` it can live in a build setting —
+one button and one sheet. No model change.*
+
+### 20. Prefill the currency from the country you are in
+
+The cheapest of the four, and the one whose payoff is clearest. The app already
+thinks about the traveller: `ExpenseDefaults` keeps the last currency per group
+and the last rate per group *per currency*, precisely so a trip through three
+countries doesn't overwrite one rate with the next.
+
+**The mapping needs no table.** `Locale(identifier: "und_PL").currency?.identifier`
+returns `PLN`, out of the ICU data already in the OS — verified for PL, NL, JP,
+GB, CH, HU and CZ. That matters because an embedded currency database is one of
+the four things named at the top of this file as an actual size risk, and this
+isn't one.
+
+What it does need is the country, and there are only two places to get it.
+`Locale.current.region` is the device's *region setting*, not where the device
+is, which is wrong for exactly the person this feature is for. The other is
+CoreLocation — a permission prompt, for a prefill.
+
+So this one rides on **19**. If location is already granted for Nearby, the
+currency prefill is free; if it isn't, there is nothing honest to prefill from.
+A setting, defaulted off, matching notifications and **15**: the app does not
+start reading the user's location until asked.
+
+The trap is the rate, not the currency. Switching the code must not carry the
+previous country's rate across — `onChange(of: currencyCode)` already looks up
+`ExpenseDefaults.lastRate` per currency and leaves the field empty when there
+isn't one, and an automatic switch has to keep that behaviour. Otherwise the
+first expense in a new country is converted at the last country's rate, which is
+wrong and looks entirely plausible.
+
+*Cost: zero bytes. A `UserDefaults` key and a `Toggle`. No model change.*
+
+### 21. Location on an expense
+
+Three optional attributes on `Expense` — latitude, longitude, and the name that
+was chosen — so that "how much did we spend at which place" can be answered
+later.
+
+**Do it in the same model version as 12 and 16.** Those two are already paired
+above for the reason that a new attribute means running the CloudKit
+initialize-and-promote dance, and that is the step that gets missed. This makes
+three attributes in one version 7, not three versions.
+
+Two decisions come first, and neither is technical:
+
+- **A location on a shared expense is a location shared with the group,
+  permanently.** Everything the app syncs today is who, what, how much and when;
+  *where* is a different category of fact about a person, it goes into the
+  shared zone, and it does not come back out. That makes it acceptable only as a
+  consequence of the user tapping **Nearby** in **19** — per expense, visible at
+  the moment it is attached, never automatic and never collected in the
+  background.
+- **The overview it is for is the weaker half of the request.** A spending
+  breakdown by place is a charts screen, and *A charts tab* sits in **Not
+  planned** below for a reason that applies here unchanged: nobody opens it
+  twice for a group with eleven expenses in it. Grouping the expense list by
+  place — the same trick **10** uses for categories — is the version that
+  survives contact with a real group.
+
+On the privacy page: nothing here becomes collected data, because there is still
+no server and no analytics. But the App Store nutrition label and
+`website/privacy/` would both need a line, and the README's *no trackers* stays
+true only so long as this remains opt-in and stays out of any background
+location mode.
+
+*Cost: zero bytes. Three optional attributes, one model version, one CloudKit
+initialize-and-promote.*
+
+### 22. iPad and Mac
+
+The only one of the four with a real number attached to it, and the number is
+**432 KB**.
+
+`TARGETED_DEVICE_FAMILY = 1` is in the savings table at the top of this file,
+and what it saved was the asset catalog storing a second copy of every icon
+rendition for the `pad` idiom. Supporting iPad puts them back.
+
+That was worth measuring rather than estimating, and the measurement moved the
+answer. Against the 1644 KB archived on 2026-08-28 it lands at **2076 KB** —
+comfortably inside the 3 MB constraint, and about 28 KB *over* the 2 MB the
+README advertises. On the 1552 KB of 2026-08-20 it would have fitted with room
+to spare; Polish spent that room.
+
+So iPad is not blocked, but it is no longer free of a decision: **the thing that
+changes is the README's line, not the feature.** 2 MB is a claim this project
+made about itself, 3 MB is the constraint at the top of this file, and the honest
+options are to drop the claim to "under 3 MB", find 28 KB elsewhere, or decide
+iPad layout isn't worth the sentence. Worth knowing that the 432 KB is pure
+duplication — the same renditions stored twice under two idioms — so a smarter
+catalog, not a smaller app, is where that money would come back from.
+
+Worth being clear about what the bytes buy, which is nothing. Dutch is not
+unavailable on iPad today; it installs and runs in iPhone compatibility mode.
+This is a *layout* feature — a `NavigationSplitView`, a form that doesn't
+stretch a text field across eleven inches — and the honest question is whether
+that layout work is worth 432 KB, not whether iPad users can run the app.
+
+**The Mac is nearly free once iPad is done, by one route and not the others.**
+"Designed for iPad" is a checkbox in App Store Connect on Apple Silicon: no
+target, no code, and not a byte in the iOS download. Mac Catalyst and a native
+macOS target are both genuine work, and both ship a separate binary whose size
+never counts against the iOS download at all — so even there, size is not what
+decides it.
+
+Sync is the part that already works: CloudKit is per Apple Account, so the same
+private database and the same shared zones simply appear. Two things would bite
+if this ever goes past the checkbox:
+
+- **The app group identifier is spelled differently on macOS** —
+  `$(TeamIdentifierPrefix)group.net.smigi.Dutch` under Catalyst. Both persistent
+  stores and `ExpenseDefaults` live in that container, and both deliberately
+  fall back to the old location when the entitlement is missing. So getting it
+  wrong doesn't crash: it silently opens an empty database on the Mac and reads
+  as a sync failure.
+- **Share acceptance lives on the scene delegate**, and the AppKit path is a
+  different method again. The failure mode is the one this app has already had
+  once — invitations that appear to do nothing.
+
+*Cost: 432 KB for iPad, being the reverse of a saving already taken and already
+measured. Zero on top of that for "Designed for iPad". No model change.*
 
 ---
 
 ## Localization
 
-**The app is English-only, and not merely untranslated — it is unlocalizable as
-written.** There is no String Catalog, no `.lproj`, and every user-facing string
-is a Swift literal. Brazilian Portuguese was the first language asked for, in
-the same weekend the app reached 800 phones, and it will not be the last.
+**Dutch speaks English and Polish.** One `Localizable.xcstrings` holds 252 keys,
+an `InfoPlist.xcstrings` carries the camera prompt, there is no `.lproj` in the
+source tree, and nothing is stale or untranslated. Polish shipped 2026-08-27,
+partly through the repo's first outside contributions.
 
-Adding a language is therefore not the work. The work is the three things
-standing in front of it:
+This section used to say the app was "not merely untranslated — unlocalizable as
+written", and list the three things standing in front of a second language. All
+three are done. What is kept here is what each one turned out to cost, because
+none of them was the part that actually bit.
 
-- **The strings have to become a catalog.** One `.xcstrings`, and every literal
-  migrated into it.
-- **Sentences assembled by interpolation have to become format strings.**
-  `"\(payer) paid \(recipient)"`, `"You pay \(name) \(amount)"` and
-  `"Paid by \(name)"` all bake English word order into the source. Positional
-  arguments are what let a translator move them.
-- **Plurals have to leave Swift.** `GroupDetailView.count(_:_:_:)` picks between
-  a singular and a plural by comparing to 1, which is the correct rule in
-  English and in no language that has more than two forms. The catalog's plural
-  variants exist precisely for this.
+- **The strings became a catalog** — and nothing was extracted into it until
+  `SWIFT_EMIT_LOC_STRINGS` was turned on. It was `NO` in all four build
+  configurations, so only the hand-written symbolic keys existed and every
+  `Text("Settings")` in the app stayed English whatever the phone was set to.
+  Nothing warns about this; the catalog looks healthy the entire time, because
+  the keys that *are* there are translated correctly.
+- **Interpolated sentences became format strings**, and Polish justified the
+  effort on the first line it touched: `"%@ pays %@ %@"` is translated
+  `"%1$@ płaci %3$@ — odbiorca: %2$@"`. The amount moves ahead of the recipient
+  and the recipient moves behind a dash. Without positional arguments that
+  sentence cannot be written at all.
+- **Plurals left Swift.** `GroupDetailView.count(_:_:_:)` is gone, replaced by
+  catalog plural variations on the five counted strings. Polish needs four
+  categories — `one`, `few`, `many`, `other` — where English needs two, so any
+  `== 1 ? singular : plural` left in Swift is a bug for it. The trap on the way
+  out is the opposite direction: moving a count into the catalog means adding
+  the English `one`/`other` variations too, or English regresses to
+  *"1 expenses"* while the translation is perfect.
 
-Once that is done a language is close to free — a translation pass and a
-`.xcstrings` column — which is the reason to do it before there are two of them
-rather than after.
+### Two key conventions, in one catalog
 
-*Cost: roughly 20–40 KB per language of compiled strings, well inside the
-budget. The expense is hours, not bytes: this is the largest item on this page
-and the only one whose cost is mostly typing.*
+Mistaking one for the other costs an afternoon, so: **78 of the keys are
+symbolic** (`settleUp`, `addMembersFirst`, `about`), written by hand, marked
+`extractionState: manual`, and used as `Text(.settleUp)` — Xcode generates those
+static members from the catalog itself, which means grepping the source for
+`"settleUp"` finds nothing and they read as dead entries. They are not. The
+other **174 are English literals** extracted from `Text("…")` and
+`String(localized:)`, where the key and the English text are the same string.
+
+Both conventions are correct and they are not interchangeable. The literal one
+is cheaper to write and reads better at the call site; the symbolic one is what
+to reach for when the same English word needs two different translations. There
+is a live example: `GroupSummaryStrings.localized` uses a symbolic key for
+`fallbackTitle` rather than the literal `"Group"`, because that English word is
+*also* an App Intents parameter label, and one shared key would force a single
+Polish translation to serve both.
+
+### The failure that hid the longest
+
+**A `String`-typed helper returning an English literal is never localized**,
+because `Text(someString)` resolves to the non-localizing initializer. No
+warning, no stale key, nothing in the catalog to notice — the string simply
+never had a key to begin with. These were all far from the screen and all
+missed on the first pass: `Standing.caption`, `CloudSyncMonitor.describe`,
+`PurchaseStore.message`, `JoinGroupView.message`, the App Intent answers and the
+notification bodies. Every one is wrapped in `String(localized:)` now.
+
+The rule that generalises: if a function returns `String` and that string
+reaches a view, it needs the wrapper. A function returning `LocalizedStringKey`
+or `LocalizedStringResource` cannot make this mistake, which is the better shape
+where it fits.
+
+### DutchKit still has no resource bundle
+
+The shareable summary is the one place in the package that writes prose, and the
+obvious fix — give DutchKit its own catalog — was declined on 2026-08-27.
+`GroupSummary.text(locale:strings:)` takes a `GroupSummaryStrings` pack instead:
+plain values, plus `@Sendable` closures for the lines that take arguments. The
+app fills it from the single catalog it already ships, in
+`Models/DTO/GroupSummaryStrings+Localized.swift`.
+
+So a translator has one file to find rather than two, the package keeps no
+resources and `swift test` still runs without a simulator, and
+`GroupSummaryStrings.english` remains the default so the package's own tests
+assert the text they always did. Measured at 2.5 KB, and no `.bundle` in the
+app.
+
+### Adding the next language
+
+Close to what this section always promised — a translation pass and a column —
+with three mechanical notes that are easy to lose:
+
+- **`xcodebuild build` does not sync the catalog from source.** Only the Xcode
+  IDE and `xcodebuild -exportLocalizations` do, so a literal added from the
+  command line silently never becomes a key:
+
+  ```
+  xcodebuild -exportLocalizations -workspace Dutch.xcworkspace -scheme Dutch \
+    -localizationPath <dir> -exportLanguage <code> CODE_SIGNING_ALLOWED=NO
+  ```
+
+  It rewrites `Localizable.xcstrings` in place. Afterwards, check for entries
+  with no translation and for `extractionState: stale` — both are zero today.
+
+- **Editing the catalog with a script needs Xcode's formatting**, which is
+  `indent=2` with a space before the colon. A plain JSON dump reformats all
+  three thousand lines and turns a two-key change into an unreviewable diff.
+
+- **The app name is deliberately not translated.** `CFBundleDisplayName` and
+  `CFBundleName` carry English only: *Dutch* is a brand and a pun on
+  *going Dutch*, and neither survives translation.
+
+*Cost: **92 KB measured**, archiving 2026-08-28 against the 1552 KB of
+2026-08-20 — 1644 KB total, of which 1252 KB binary and an unchanged 212 KB
+`Assets.car`. That splits into 64 KB of `.lproj` and 36 KB of binary for the
+`String(localized:)` call sites and the generated symbolic members. The old
+20–40 KB-per-language estimate on this line was right, at the top of its range:
+**`pl.lproj` is 40 KB.***
+
+*Worth knowing where the asymmetry comes from, because it decides what the third
+language costs. `en.lproj/Localizable.strings` holds exactly 78 entries and
+4.3 KB — only the symbolic keys, since the other 174 keys are already their own
+English text. `pl.lproj` holds 247 entries and 21.2 KB, because every one of
+them stores the full English key alongside the Polish. The English-literal-as-key
+convention is free for English and paid for once per additional language.*
 
 ---
 

@@ -247,6 +247,21 @@ enum ExpenseDefaults {
         store.set(id.uuidString, forKey: lastOpenedGroupKey)
     }
 
+    /// Whether launching should land in `lastOpenedGroupID` rather than on the
+    /// group list.
+    ///
+    /// Internal rather than private, because the switch in `SettingsView` binds
+    /// to this key through `@AppStorage` and the string has to exist exactly
+    /// once — the same reason `QuickAction.newExpense` is spelled in one place.
+    static let reopenLastGroupKey = "reopenLastGroup"
+
+    /// Defaulted off, which `bool(forKey:)` gives for free on a key never
+    /// written. The app does not change where it opens until it is asked to,
+    /// matching how notifications behave here.
+    static var reopensLastGroup: Bool {
+        store.bool(forKey: reopenLastGroupKey)
+    }
+
     // MARK: - Cleanup
 
     /// Drops a deleted group's entries, so the keys don't accumulate for groups

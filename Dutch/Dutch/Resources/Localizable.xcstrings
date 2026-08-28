@@ -1171,6 +1171,16 @@
         }
       }
     },
+    "Open Last Group" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwórz ostatnią grupę"
+          }
+        }
+      }
+    },
     "Open Notification Settings" : {
       "localizations" : {
         "pl" : {
@@ -1944,23 +1954,6 @@
         }
       }
     },
-    "addMembersToSplitExpense" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add members to start splitting expenses."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dodaj członka, aby zacząć dzielić wydatki."
-          }
-        }
-      }
-    },
     "addressingTip" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2446,6 +2439,23 @@
         }
       }
     },
+    "launch" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Launch"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uruchamianie"
+          }
+        }
+      }
+    },
     "memberName" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2690,6 +2700,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zeskanuj aparatem kod QR grupy."
+          }
+        }
+      }
+    },
+    "reopenLastGroupExplanation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When Dutch starts fresh it opens the group you were last in, rather than the group list. Returning from the background leaves you wherever you were."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gdy Dutch uruchamia się od nowa, otwiera ostatnio otwartą grupę zamiast listy grup. Powrót z tła nie zmienia bieżącego ekranu."
           }
         }
       }

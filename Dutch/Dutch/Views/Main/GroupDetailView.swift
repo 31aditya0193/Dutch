@@ -299,55 +299,61 @@ struct GroupDetailView: View {
 
     private func membersSection(_ contents: Contents) -> some View {
         Section {
-            if contents.members.isEmpty {
-                Text(.addMembersToSplitExpense)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(contents.members, id: \.objectID) { member in
-                    MemberBalanceRow(
-                        name: member.name ?? "Unnamed",
-                        avatar: contents.avatars[member],
-                        isLinked: member.cloudUserRecordName != nil,
-                        balance: member.id.flatMap { contents.balances[$0] },
-                        currencyCode: group.currency,
-                        isMe: member == me
-                    )
-                    // A context menu rather than a row of its own: identity is
-                    // set once and never thought about again, and a permanent
-                    // "who am I" control would sit in the way of the balances
-                    // for the rest of the trip. Renaming and recolouring are
-                    // here for the same reason, and above the identity items
-                    // because they apply to every row — including the ones
-                    // already claimed by somebody else.
-                    .contextMenu {
-                        Button("Edit Member", systemImage: "pencil") {
-                            editTarget = EditTarget(
-                                member: member,
-                                avatar: contents.avatars[member]
-                            )
-                        }
+            // No placeholder row while this is empty. The header says what the
+            // section is and the button below says what to do about it, so a
+            // third line saying the same thing was the redundancy people
+            // reported. `expensesSection` already works this way — a
+            // placeholder *or* an action, never both — and this was the one
+            // section that stacked the two.
+            //
+            // The header is what stays. Making it read "Add Members" while
+            // empty is the other obvious fix and is worse: a section header is
+            // what VoiceOver announces before every row beneath it, so a verb
+            // there is read out immediately before the button that repeats it.
+            ForEach(contents.members, id: \.objectID) { member in
+                MemberBalanceRow(
+                    name: member.name ?? "Unnamed",
+                    avatar: contents.avatars[member],
+                    isLinked: member.cloudUserRecordName != nil,
+                    balance: member.id.flatMap { contents.balances[$0] },
+                    currencyCode: group.currency,
+                    isMe: member == me
+                )
+                // A context menu rather than a row of its own: identity is
+                // set once and never thought about again, and a permanent
+                // "who am I" control would sit in the way of the balances
+                // for the rest of the trip. Renaming and recolouring are
+                // here for the same reason, and above the identity items
+                // because they apply to every row — including the ones
+                // already claimed by somebody else.
+                .contextMenu {
+                    Button("Edit Member", systemImage: "pencil") {
+                        editTarget = EditTarget(
+                            member: member,
+                            avatar: contents.avatars[member]
+                        )
+                    }
 
-                        if member == me {
-                            Button("Not Me", systemImage: "person.slash") {
-                                setIdentity(nil)
-                            }
-                        } else if CloudIdentity.isSomeoneElse(member) {
-                            // Offered as a disabled row rather than hidden, so
-                            // the answer to "why can't I pick this one?" is on
-                            // screen instead of being an unexplained gap in a
-                            // menu every other row has.
-                            Button("Already Someone Else", systemImage: "person.fill.xmark") {}
-                                .disabled(true)
-                        } else {
-                            Button("This Is Me", systemImage: "person.crop.circle.badge.checkmark") {
-                                setIdentity(member)
-                            }
+                    if member == me {
+                        Button("Not Me", systemImage: "person.slash") {
+                            setIdentity(nil)
+                        }
+                    } else if CloudIdentity.isSomeoneElse(member) {
+                        // Offered as a disabled row rather than hidden, so
+                        // the answer to "why can't I pick this one?" is on
+                        // screen instead of being an unexplained gap in a
+                        // menu every other row has.
+                        Button("Already Someone Else", systemImage: "person.fill.xmark") {}
+                            .disabled(true)
+                    } else {
+                        Button("This Is Me", systemImage: "person.crop.circle.badge.checkmark") {
+                            setIdentity(member)
                         }
                     }
                 }
-                .onDelete { offsets in
-                    membersPendingDeletion = offsets.map { contents.members[$0] }
-                }
+            }
+            .onDelete { offsets in
+                membersPendingDeletion = offsets.map { contents.members[$0] }
             }
 
             // A full-width row, not a glyph in the section header. This is the

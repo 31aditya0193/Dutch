@@ -16,7 +16,6 @@ struct LocalizableTests {
         let keys = [
             "about",
             "addMembersFirst",
-            "addMembersToSplitExpense",
             "amount",
             "newAdditionInstructions",
             "checkMatchOnOtherDevice",
@@ -44,7 +43,6 @@ struct LocalizableTests {
         let expectedTranslations = [
             "About",
             "Add members first.",
-            "Add members to start splitting expenses.",
             "Amount",
             "Anyone who scans this code can join the group. Use Invite People instead to choose people yourself.",
             "Check this matches on the other device.",
