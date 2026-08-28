@@ -462,7 +462,7 @@ private struct GroupRow: View {
                     // The figure changes whenever anyone adds an expense,
                     // including from another device — roll the digits so it's
                     // visible.
-                    .contentTransition(.numericText())
+                    .motionContentTransition(.numericText())
 
                 Text(standing?.caption(isMe: true) ?? "")
                     .font(.caption2)
@@ -483,7 +483,7 @@ private struct GroupRow: View {
                 Text(settlement.totalSpent.formatted(in: group))
                     .font(.headline)
                     .monospacedDigit()
-                    .contentTransition(.numericText())
+                    .motionContentTransition(.numericText())
 
                 Text(pending == 0 ? "Settled up" : "\(pending) to settle")
                     .font(.caption2)

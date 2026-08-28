@@ -247,7 +247,7 @@ struct GroupDetailView: View {
                         Text(contents.totalSpent.formatted(in: group))
                             .font(.largeTitle.weight(.semibold))
                             .monospacedDigit()
-                            .contentTransition(.numericText())
+                            .motionContentTransition(.numericText())
 
                         // Counts the spending, not the rows: settling up adds an
                         // entry to the list below but buys nothing, and "12
@@ -416,13 +416,21 @@ struct GroupDetailView: View {
     @ViewBuilder
     private func expensesSection(_ contents: Contents) -> some View {
         if contents.days.isEmpty {
-            Section("Expenses") {
-                if contents.members.isEmpty {
-                    Text(.noExpensesYet)
-                        .foregroundStyle(.secondary)
-                } else {
-                    // Members exist, so the app is ready for its main action —
-                    // offer it here rather than relying on a toolbar glyph.
+            // Nothing at all until there is a roster. The summary block above
+            // already says *Nothing spent yet*, and a grey *No expenses yet.*
+            // under an Expenses header is that same sentence a second time, on
+            // the one screen that has nothing else to look at — a brand-new
+            // group announcing its own emptiness twice before offering anything
+            // to do about it. `settleUpSection` above is the precedent: a
+            // section with nothing to say does not appear.
+            //
+            // Once there are members the section returns carrying the *action*
+            // rather than a placeholder, which is the rule the rest of this
+            // screen follows and the one `membersSection` was fixed to obey.
+            // The result is that each stage of a new group offers exactly one
+            // next thing to do: add members, then add the first expense.
+            if !contents.members.isEmpty {
+                Section("Expenses") {
                     Button {
                         showingAddExpense = true
                     } label: {
@@ -942,7 +950,7 @@ private struct MemberBalanceRow: View {
                         .font(.body.weight(.medium))
                         .monospacedDigit()
                         .foregroundStyle(standing.tint)
-                        .contentTransition(.numericText())
+                        .motionContentTransition(.numericText())
                 case .settled:
                     Text(.settled)
                         .font(.subheadline)

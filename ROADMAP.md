@@ -60,7 +60,7 @@ named API, and say which: today the only two that would matter are
 - iCloud sync and group sharing by QR code
 - Expenses entered in a foreign currency, converted once at entry
 
-**Added since:** the eight below. The first four were built together because two
+**Added since:** everything below. The first four were built together because two
 of them shared a single Core Data version bump and doing that migration twice
 would have been worse than doing it once; only the group's symbol and colour
 have needed a model change since. The reasoning is kept here because each one
@@ -324,6 +324,140 @@ costs the grouping that says which of the three is the point.
 unchanged at 212 KB. No model change; the four features that touch storage all
 ride on `UserDefaults` or on attributes the model already had.*
 
+### Open the last group on launch
+
+Requested by somebody who lives in one group at a time, which on a trip is
+everybody. Most of it already existed — `ExpenseDefaults.lastOpenedGroupID` was
+being recorded for the Action button and the Home Screen action, and
+`AppRouter.open` is how anything outside the view tree pushes a screen — so this
+was the wiring, a switch in Settings, and one decision that only appeared once it
+could be used.
+
+**A setting, defaulted off**, matching how notifications work here: the app does
+not change where it opens until asked. `bool(forKey:)` returns `false` for a key
+never written, so "off" needs no registration. The key lives in `ExpenseDefaults`
+and is `internal` rather than `private`, because the `@AppStorage` binding in
+`SettingsView` and the launch site have to spell it identically — the same reason
+`QuickAction.newExpense` exists once.
+
+**Cold launch only, and that is the whole of the interesting part.** The restore
+runs from `scene(_:willConnectTo:)`, which fires when a scene *connects*. Coming
+back from the background therefore restores nothing, and the first report after
+building it was exactly that: toggle on, leave the app on the group list, tap the
+icon, get the group list. That reads like a bug and isn't one.
+
+Moving the call to a `scenePhase` hook is the obvious repair and it is wrong.
+Returning from the background already puts you back in the group you were in,
+because the navigation path never left memory — so the *only* screen a foreground
+restore could change is the one where you had deliberately navigated back to the
+list. And `lastOpenedGroupID` is never cleared when you do that, because the quick
+action and Siri both need it to keep meaning "the trip I'm on". A resume restore
+would therefore make it impossible to stay on the group list across a
+backgrounding. A time-thresholded version was considered and declined on
+2026-08-28: it buys a rarer version of the same fight with the user, at the cost
+of a stored `Date` and behaviour nobody can predict from the switch's label.
+
+The consequence is that the feature fires seldom, since iOS rarely terminates
+apps. That is the honest trade, and the footer says so rather than promising more
+than it does — *"When Dutch starts fresh…"*, not *"when you open Dutch"*.
+
+Two smaller things the build settled. Precedence is one line: the restore runs
+last in `willConnectTo` and only when `AppRouter.shared.destination` is still
+`nil`, so a quick action, a Spotlight result or an intent always wins. Accepting
+an invitation turned out not to be the hazard it looked like — acceptance is
+asynchronous and never writes to the router at all, and a first-time member has no
+last-opened group to restore. And the id is resolved through `GroupLookup` rather
+than handed to the router raw, because `followRouter` answers an unresolvable id
+with *"That group isn't on this device."* — the right answer for a tap, and the
+wrong one for a launch nobody asked a question with.
+
+*Cost: 2.7 KB of `__text`, shared with the entry below. Three strings in two
+languages. No model change.*
+
+### The empty Members section said the same thing three times
+
+Reported as "this feels redundant", about a section that on first launch read: a
+header saying **Members**, a grey row saying *Add members to start splitting
+expenses.*, and a button saying **Add Member**. Three lines, one instruction. The
+complaint was right.
+
+The suggested fix was to make the header the instruction — *Add Members* while
+empty, reverting to *Members* once there are any — and that is the one of the
+three that should not have moved. A section header is the context VoiceOver reads
+before every row beneath it, so a verb there is announced immediately before the
+button that repeats it, which makes the redundancy louder rather than quieter for
+the people least able to skip past it.
+
+**The grey row went instead**, being the line carrying no information the button
+doesn't. The precedent was already in the same file: `expensesSection` shows a
+placeholder **or** an action, never both, and `membersSection` was the one place
+that stacked the two. So this applied an existing rule rather than inventing one.
+
+Removing it orphaned `addMembersToSplitExpense`, which had exactly one call site.
+The key came out of the catalog in both languages and out of `LocalizableTests`,
+where the keys and their expected translations are two positional arrays — an
+entry has to leave both at the same index, or every assertion after it compares
+the wrong pair.
+
+**The larger question underneath it is still open.** A brand-new group draws three
+empty containers in a row — *Nothing spent yet*, the members placeholder, *No
+expenses yet.* — each individually reasonable and collectively a screen that
+announces its own emptiness three times before offering anything to do about it.
+Cutting the members row answered the report. Whether a group with no members and
+no expenses should be one empty state rather than three is not settled.
+
+*Cost: negative in source — one `Text`, one branch and one string removed.*
+
+### Reduce Motion
+
+Nothing in the app read `accessibilityReduceMotion`, which made it the one
+accessibility gap that was real work rather than a measurement. It is now
+honoured, through one helper rather than an environment read in every view:
+`motionContentTransition(_:)` in `Views/Components/ReduceMotion.swift` passes
+`.identity` when the setting is on, and all nine content transitions route
+through it. `ErrorBanner` reads the value directly, because what it needs to
+drop is a `.transition`, not a content transition.
+
+**The single funnel is the point.** A bare `.contentTransition` is now absent
+from the app, so `grep` answers "does everything honour the setting" in one
+line, and a new one added later stands out as the site nobody audited. Scattering
+`@Environment(\.accessibilityReduceMotion)` across nine views would have worked
+once and rotted on the tenth.
+
+**Two kinds of motion were removed, and one kind of animation deliberately was
+not.** `.numericText()` rolls every digit of a balance whenever the figure
+changes — including changes the user did not initiate, arriving from a CloudKit
+import while they are reading the screen — and `.symbolEffect(.replace)` swaps a
+glyph by scaling one out and the next in. Both go. The banner's slide up from
+the bottom edge becomes a plain fade rather than nothing at all, because unlike
+a balance changing under you that one *is* an event, and it has to be noticed to
+be read before it clears itself six seconds later.
+
+What stayed is the `.snappy` value animations — a balance easing from red to
+green, a picker's selection moving. Those animate colour and layout, and the
+setting targets motion rather than change; Apple's guidance is to substitute
+cross-fades, not to freeze the interface. That is a judgement call and it is
+reversible in one line in the helper if it turns out to be the wrong one.
+
+**A correction, because this page had it wrong.** The second effect was
+described here as "the group list's `.spring(response: 0.35, dampingFraction:
+0.8)`". That spring is in `ErrorBanner.swift` and always was; `GroupListView`
+uses `.snappy`. The count of "22 animation sites" was reached the same way — by
+counting every animation rather than every piece of *motion*, which is ten. Read
+the code before quoting this file's numbers back at it.
+
+Worth keeping: the rolling digits were never only an accessibility problem. They
+are why an App Store screenshot captured a few seconds after launch caught ghost
+numerals mid-transition, and why the capture script waits ten seconds.
+
+**The listing is the outstanding half.** The code supports Reduce Motion; the
+App Store accessibility labels do not yet claim it. A label is a claim, and this
+one is now true — but claiming it is a metadata change, not a build.
+
+*Cost: 2.1 KB of `__text`, and zero archived bytes — the app measured 1660 KB
+before and after, the `__TEXT` segment padding absorbing all of it. No model
+change.*
+
 ---
 
 ## Next
@@ -405,22 +539,6 @@ model version as **16** below — the lesson from the first four features here i
 that two attributes arriving separately means running the CloudKit
 initialize-and-promote dance twice, and that is the step that gets missed.
 
-### 15. Reopen the last group on launch
-
-Requested by somebody who lives in one group at a time, which on a trip is
-everybody. The parts already exist: `ExpenseDefaults.lastOpenedGroupID` records
-it for the Action button and the Home Screen action, and `AppRouter.open` is how
-anything outside the view tree pushes a screen. This is the wiring plus a switch
-in Settings.
-
-**A setting, defaulted off**, matching how notifications work here: the app does
-not change where it opens until asked. The one trap is precedence — a share
-link, a quick action and an intent all write to the same router, so the restore
-has to lose to any explicit destination, or accepting an invitation lands the
-new member in yesterday's trip instead of the group they were invited to.
-
-*Cost: a `UserDefaults` key and a `Toggle`. No model change.*
-
 ### 16. Several people paid
 
 `paidBy` is a to-one relationship in the model *and* `payer: Participant.ID` in
@@ -455,45 +573,6 @@ typing. Scanning the *total* alone is not worth a camera permission prompt:
 typing 47.30 is four taps.
 
 Nothing here stores an image, so it does not reopen **Receipt photos** below.
-
-### 18. The empty Members section says the same thing three times
-
-Reported as "this feels redundant", about a section that on first launch reads:
-a header saying **Members**, a grey row saying *Add members to start splitting
-expenses.*, and a button saying **Add Member**. Three lines, one instruction.
-The complaint is right.
-
-The suggested fix was to make the header the instruction — *Add Members* while
-empty, reverting to *Members* once there are any — and that is the one of the
-three that should not move. A section header is the context VoiceOver reads
-before every row beneath it, so a verb there is announced immediately before the
-button that repeats it, which makes the redundancy louder rather than quieter
-for the people least able to skip past it. It is also only wrong while the
-section is empty; a header that changes under you draws the eye to the least
-interesting part of the screen at the exact moment the eye is needed on the
-button.
-
-**Cut the grey row instead**, which is the line carrying no information the
-button doesn't. `Add Member` sits directly below it and says what to do; the
-header says what the section is. The remaining half — *to start splitting
-expenses* — is the screen's purpose, not this section's, and the screen has a
-title.
-
-The precedent is already in the same file. `expensesSection` shows a placeholder
-**or** an action, never both: with no members it says *No expenses yet.*, and the
-moment members exist that line is replaced by **Add the First Expense**.
-`membersSection` is the one place that stacks the two. So this is not a new rule,
-it is applying the existing one to the section that missed it.
-
-Worth looking at the whole screen while in there. A brand-new group draws three
-empty containers in a row — *Nothing spent yet*, the members placeholder, *No
-expenses yet.* — each individually reasonable and collectively a screen that
-announces its own emptiness three times before offering anything to do about it.
-Fixing the members section answers the report; whether a group with no members
-and no expenses should be one empty state rather than three is the larger
-question underneath it, and is not settled here.
-
-*Cost: negative. One `Text`, one branch and one string removed. No model change.*
 
 ---
 
@@ -566,7 +645,8 @@ CoreLocation — a permission prompt, for a prefill.
 
 So this one rides on **19**. If location is already granted for Nearby, the
 currency prefill is free; if it isn't, there is nothing honest to prefill from.
-A setting, defaulted off, matching notifications and **15**: the app does not
+A setting, defaulted off, matching notifications and **Open the last group
+on launch** above: the app does not
 start reading the user's location until asked.
 
 The trap is the rate, not the currency. Switching the code must not carry the
@@ -791,8 +871,8 @@ convention is free for English and paid for once per additional language.*
 
 ## Accessibility
 
-The App Store listing carries accessibility labels, and a label is a claim. These
-are the two Dutch cannot honestly make yet, audited 2026-07-29 against the 1.0
+The App Store listing carries accessibility labels, and a label is a claim. One
+is left that Dutch cannot honestly make, audited 2026-07-29 against the 1.0
 submission.
 
 **Already true, and listed:** VoiceOver, Voice Control, Larger Text, Dark
@@ -804,30 +884,9 @@ styles throughout and nothing caps `dynamicTypeSize`; the three
 `.font(.system(size:))` call sites are all `Image(systemName:)` glyphs, where a
 fixed size is correct.
 
-### 13. Reduce Motion
-
-**Not currently supported, and the one gap that is real work.** Nothing in the
-app reads `accessibilityReduceMotion`, and there are 22 animation sites that
-would need to honour it. The two that matter most are the ones a
-motion-sensitive person would notice immediately:
-
-- `.contentTransition(.numericText())` rolls every balance digit whenever a
-  figure changes — including changes the user didn't initiate, arriving from a
-  CloudKit sync while they are reading the screen;
-- the group list's `.spring(response: 0.35, dampingFraction: 0.8)`, chosen
-  deliberately over an ease so that a row arriving from someone else's phone
-  reads as an event rather than a glitch.
-
-Both are good defaults and both are exactly what the setting exists to turn off.
-The fix is to read the environment value and fall back to no animation and a
-plain text change — perhaps twenty lines across `GroupListView`, `GroupRow` and
-the detail screen. It is small; it simply hasn't been done.
-
-Worth knowing that the rolling digits are not only an accessibility problem: they
-are why an App Store screenshot captured a few seconds after launch caught ghost
-numerals mid-transition, and why the capture script waits ten seconds.
-
-*Cost: zero bytes. No model change.*
+**Already true, and not yet listed:** Reduce Motion, since 2026-08-28 — see
+**Reduce Motion** under Shipped. The code is done and the label is not, which is
+the one direction of that mismatch nobody is harmed by.
 
 ### 14. Measure contrast, then claim it or fix it
 

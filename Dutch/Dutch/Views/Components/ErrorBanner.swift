@@ -14,6 +14,13 @@ import SwiftUI
 private struct ErrorBannerModifier: ViewModifier {
     @Binding var message: String?
 
+    /// The banner slides up from the bottom edge, which is the one piece of
+    /// travel in the app that Reduce Motion should remove. It fades instead —
+    /// a cross-fade rather than nothing at all, because unlike a balance
+    /// changing under you this *is* an event, and it has to be noticed to be
+    /// read before it clears itself six seconds later.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func body(content: Content) -> some View {
         content
             .overlay(alignment: .bottom) {
@@ -23,7 +30,11 @@ private struct ErrorBannerModifier: ViewModifier {
                 ZStack {
                     if let message {
                         banner(message)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    : .move(edge: .bottom).combined(with: .opacity)
+                            )
                     }
                 }
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: message)

@@ -57,7 +57,7 @@ struct SyncStatusIndicator: View {
                     .symbolRenderingMode(.hierarchical)
                     // Replace rather than cut: the glyph changing is the only
                     // notice a state change gets now that no text is on screen.
-                    .contentTransition(.symbolEffect(.replace))
+                    .motionContentTransition(.symbolEffect(.replace))
                     // No `.symbolEffect(.pulse, isActive:)` here on purpose.
                     // `isSyncing` flips true within the first second of launch
                     // as mirroring starts up, which started a continuous, every-

@@ -2507,23 +2507,6 @@
         }
       }
     },
-    "noExpensesYet" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No expenses yet."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Na razie brak wydatków."
-          }
-        }
-      }
-    },
     "nothingSpentYet" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -335,7 +335,7 @@ struct ExpenseFormView: View {
             // upside down — before saving.
             if let summary = savesAsSummary {
                 Text(summary)
-                    .contentTransition(.numericText())
+                    .motionContentTransition(.numericText())
             }
         }
     }
@@ -857,7 +857,7 @@ private struct MemberSplitRow: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
-                                .contentTransition(.numericText())
+                                .motionContentTransition(.numericText())
                         }
                     }
 
@@ -867,7 +867,7 @@ private struct MemberSplitRow: View {
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                         .imageScale(.large)
-                        .contentTransition(.symbolEffect(.replace))
+                        .motionContentTransition(.symbolEffect(.replace))
                 }
                 .contentShape(Rectangle())
             }
@@ -900,7 +900,7 @@ private struct MemberSplitRow: View {
                     Text(share.formatted(.percent))
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(share == Share.full ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
-                        .contentTransition(.numericText())
+                        .motionContentTransition(.numericText())
                         // Padding, not a frame: the tappable area has to clear
                         // 44pt without the text jumping around as it goes from
                         // "50%" to "100%".
