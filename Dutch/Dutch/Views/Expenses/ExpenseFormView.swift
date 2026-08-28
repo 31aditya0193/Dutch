@@ -334,6 +334,24 @@ struct ExpenseFormView: View {
 
     // MARK: - Sections
 
+    /// The step down in weight given to every row that *qualifies* the amount
+    /// rather than being it.
+    ///
+    /// Title and Amount are what an expense is made of; Tip, Currency and the
+    /// rate are adjustments to the figure above them, and in the ordinary case
+    /// — a single-currency group buying a round with no service charge on it —
+    /// none of the three is touched at all. Drawn at the same weight as the
+    /// amount they modify, they read as four equally important questions on a
+    /// form whose entire purpose is one number.
+    ///
+    /// One step of the type scale, not a hand-picked size, so Larger Text keeps
+    /// scaling all of it. Defined here rather than repeated at the three call
+    /// sites because the decision is "these are secondary", and it should be
+    /// possible to change that in one place.
+    private func qualifier<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content().font(.subheadline)
+    }
+
     private var detailsSection: some View {
         Section {
             // Named as optional in the placeholder, because nothing else on
@@ -429,26 +447,36 @@ struct ExpenseFormView: View {
                 showingCustomTip = true
             }
         } label: {
-            // Styled by hand, because a `Menu` tints its whole label with the
-            // accent colour and `LabeledContent` alone would then render both
-            // halves blue — unlike `currencyRow`, which is a `NavigationLink`
-            // and gets primary/secondary for free. Left alone it read as a
-            // button rather than a value, and it read that way even while it
-            // said *None*.
+            // An `HStack`, not a `LabeledContent`, and that is not a style
+            // preference. Inside a `Menu`, `LabeledContent` ignores a
+            // `foregroundStyle` set on its *label* slot and paints it with the
+            // accent colour anyway — so this row shipped with a blue **Tip**
+            // against a grey **None**, which read as a button that was somehow
+            // also switched off. The value slot honoured the same modifier
+            // perfectly, which is what made it look like a styling mistake
+            // rather than a control that overrides you.
             //
-            // So the colour carries the same meaning it does on the share menu
-            // below: secondary while this is at its default, tinted once the
-            // user has actually set something. Blue then means "there is a tip
-            // on this expense", which is worth noticing on a screen where the
-            // tip is folded into a total nothing else itemises.
-            LabeledContent {
-                Text(tip.isNone ? String(localized: "None") : Self.percentText(tipPercent))
-                    .foregroundStyle(
-                        tip.isNone ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint)
-                    )
-            } label: {
-                Text("Tip")
-                    .foregroundStyle(.primary)
+            // Laid out by hand it does as it is told, and it now matches
+            // `amountRow` and `rateRow`, which were always plain stacks.
+            //
+            // The colour left on the value carries the meaning the share menu
+            // below gives it: secondary while this sits at its default, tinted
+            // once the user has actually set something. Tinted then means
+            // "there is a tip on this expense", which is worth noticing on a
+            // screen where the tip is folded into a total nothing itemises.
+            qualifier {
+                HStack {
+                    Text("Tip")
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 12)
+
+                    Text(tip.isNone ? String(localized: "None") : Self.percentText(tipPercent))
+                        .foregroundStyle(
+                            tip.isNone ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint)
+                        )
+                }
+                .contentShape(Rectangle())
             }
         }
         .accessibilityIdentifier("Tip")
@@ -476,7 +504,22 @@ struct ExpenseFormView: View {
             // form, and "PLN · Polish Zloty" trailing a label pushes the two
             // into a wrap at accessibility text sizes for a word the user just
             // chose and already knows.
-            LabeledContent("Currency", value: currencyCode)
+            // Laid out by hand for the reason given on `tipRow`: inside a
+            // `NavigationLink`, `LabeledContent` renders its value at body
+            // size whatever font is set around it, so this row's PLN came out
+            // matching the amount above it — the one figure on this screen it
+            // is supposed to be subordinate to.
+            qualifier {
+                HStack {
+                    Text("Currency")
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 12)
+
+                    Text(currencyCode)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -485,23 +528,31 @@ struct ExpenseFormView: View {
     @ViewBuilder
     private var rateRow: some View {
         if isForeign {
-            HStack {
-                Text("1 \(group.currency) =")
-                    .accessibilityHidden(true)
+            // Demoted with Tip and Currency, even though Save is disabled
+            // without it. It is required only *because* a foreign currency was
+            // chosen on the row above — it belongs to that choice rather than
+            // standing beside the amount — and nothing here has to carry the
+            // news that it is missing: the footer says "Enter the rate to
+            // convert this to EUR" in words, which is louder than a font.
+            qualifier {
+                HStack {
+                    Text("1 \(group.currency) =")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
 
-                Spacer(minLength: 12)
+                    Spacer(minLength: 12)
 
-                TextField("0", text: $rateText)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .font(.body.monospacedDigit())
-                    .accessibilityLabel("Exchange rate")
-                    .accessibilityHint("How many \(currencyCode) to one \(group.currency)")
+                    TextField("0", text: $rateText)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .accessibilityLabel("Exchange rate")
+                        .accessibilityHint("How many \(currencyCode) to one \(group.currency)")
 
-                Text(currencyCode)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
+                    Text(currencyCode)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
             }
         }
     }

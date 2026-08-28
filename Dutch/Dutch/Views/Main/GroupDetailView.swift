@@ -137,7 +137,26 @@ struct GroupDetailView: View {
                 // else in it has no neighbours to be understood against, and
                 // this is the action the screen exists to offer.
                 .labelStyle(.titleAndIcon)
-                .font(.body.weight(.medium))
+                // Filled, not plain. As tinted text on a toolbar this was the
+                // primary action of the whole screen drawn exactly like a
+                // link — reported as "barely visible", which it was: nothing
+                // around it to be read against, and a glass bar behind it.
+                // `.borderedProminent` is the system's own way of saying "this
+                // is the one", and `.large` buys the height that makes it read
+                // as a button from across the table.
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .font(.body.weight(.semibold))
+                // The group's own colour rather than the app accent. It is the
+                // same colour as the icon in the summary block directly above
+                // and the row this screen was opened from, so the primary
+                // action belongs to *this* group rather than looking like a
+                // system control that wandered in.
+                //
+                // Safe from being read as a balance: `PaletteColor` excludes
+                // red and green precisely so a group's tint can never be
+                // confused with owing or being owed.
+                .tint(group.appearance.color.tint)
                 .disabled(contents.members.isEmpty)
 
                 Spacer()
