@@ -52,6 +52,21 @@ struct ShareGroupView: View {
     /// app's name, so it changes if the name ever does.
     private static let appStoreURL = URL(string: "https://apps.apple.com/app/id6795190862")
 
+    #if DEBUG
+    /// What the QR encodes in an App Store screenshot.
+    ///
+    /// Deliberately the marketing site and not a plausible-looking
+    /// `icloud.com/share/…` string. A published screenshot's QR is *scannable*,
+    /// so it will be scanned — by anybody who points a camera at the listing.
+    /// A real share URL would hand them a working key to a real group, and a
+    /// fake one wastes the scan on an error page. The site answers the question
+    /// somebody scanning a screenshot of a bill-splitting app actually has.
+    ///
+    /// Verify every published capture still decodes to this and not to a live
+    /// token: `swift Tools/qr.swift <file>`.
+    private static let screenshotShareURL = URL(string: "https://dutch.smigi.net")
+    #endif
+
     var body: some View {
         NavigationStack {
             Group {
@@ -266,6 +281,32 @@ struct ShareGroupView: View {
 
     private func prepareShare() async {
         guard case .preparing = phase else { return }
+
+        // The App Store screenshot harness cannot reach CloudKit: `share(for:)`
+        // needs an iCloud account, so on a simulator this screen never leaves
+        // `.preparing`. Before this hook the store's most important image — the
+        // one that says "scan to join" — had to be shot on a physical device
+        // and then have its *live* share URL painted out of the QR by hand,
+        // because the code as captured was a working key to a real group.
+        //
+        // The share built here is never saved anywhere, and the URL its code
+        // carries is the marketing site — see `screenshotShareURL` — so that
+        // hazard cannot come back.
+        // Gated on a launch argument as well as DEBUG: the shipping binary has
+        // none of this, and a debug build still talks to CloudKit unless it was
+        // launched by the harness.
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-screenshots") {
+            let placeholder = CKShare(recordZoneID: CKRecordZone(zoneName: "screenshots").zoneID)
+            placeholder.publicPermission = .readWrite
+            phase = .ready(
+                share: placeholder,
+                container: CKContainer(identifier: "iCloud.app.dutch.Dutch"),
+                qrCode: await QRCodeGenerator.image(for: Self.screenshotShareURL)
+            )
+            return
+        }
+        #endif
 
         do {
             let (share, container) = try await CloudSharingService.share(for: group)

@@ -789,11 +789,18 @@ private struct ExpenseDay: Identifiable {
     /// genuinely easier to place than a date — past yesterday, "3 weeks ago" is
     /// something to work out rather than read, and the weekday is what somebody
     /// reconstructing a trip actually remembers.
+    ///
+    /// `String(localized:)` rather than bare literals: this returns a `String`,
+    /// and `Text(aString)` takes the *non*-localizing initializer — so the three
+    /// relative words stayed English in every language while the dates beside
+    /// them translated themselves through `formatted`. Caught in the Polish App
+    /// Store screenshots, where the expense log read "Today" under a Polish
+    /// heading.
     var title: String {
         let calendar = Calendar.current
-        if day == .distantPast { return "Undated" }
-        if calendar.isDateInToday(day) { return "Today" }
-        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        if day == .distantPast { return String(localized: "Undated") }
+        if calendar.isDateInToday(day) { return String(localized: "Today") }
+        if calendar.isDateInYesterday(day) { return String(localized: "Yesterday") }
         return day.formatted(.dateTime.weekday(.abbreviated).day().month(.wide))
     }
 }

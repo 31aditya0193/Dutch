@@ -1779,12 +1779,32 @@
         }
       }
     },
+    "Today" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dzisiaj"
+          }
+        }
+      }
+    },
     "Try Again" : {
       "localizations" : {
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Spróbuj ponownie"
+          }
+        }
+      }
+    },
+    "Undated" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bez daty"
           }
         }
       }
@@ -1887,6 +1907,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Za co"
+          }
+        }
+      }
+    },
+    "Yesterday" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wczoraj"
           }
         }
       }
