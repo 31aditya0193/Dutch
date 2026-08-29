@@ -51,6 +51,55 @@ named API, and say which: today the only two that would matter are
 
 ---
 
+## At a glance
+
+Every entry on this page, in one place. The prose below each name is the part
+that matters — this table says *what*, and the sections say *why*, which is the
+half that stops a decision being quietly reversed a year later. Follow the link
+before acting on a row.
+
+Shipped entries carry no number: the gaps in the numbering (1–6, 9, 13, 15, 17,
+18) are items that shipped, and which number belonged to which was never
+recorded.
+
+| № | Status | Name | Description | How it's done, or would be | Blockers |
+|---|---|---|---|---|---|
+| — | Shipped | [The base](#shipped) | Groups, members, expenses and equal splits; settlement; iCloud sync and QR sharing; foreign-currency expenses converted once at entry. | What 1.0 shipped with. | — |
+| — | Shipped | [Edit an expense](#edit-an-expense) | One form both adds and edits, rewriting a record in place. | Replaced delete-and-re-enter, which on a shared group let everyone else watch the balances go wrong mid-fix. | — |
+| — | Shipped | [Record a settlement](#record-a-settlement) | **Mark Paid** logs that one member handed money to another. | A payment is an expense paid by A and split among B alone, so `SettlementCalculator` needed no change at all. | — |
+| — | Shipped | [Uneven splits, by percentage](#uneven-splits-by-percentage) | Each person's share as a percentage of a full share, 100% by default. | An integer weight overlay keyed by person. Absent weights mean an even split, so every existing expense reads unchanged. | — |
+| — | Shipped | [Who am I in this group](#who-am-i-in-this-group) | The device knows which member it belongs to, so balances read *You owe*. | `ExpenseDefaults`, deliberately not the model — syncing it would tell everyone else in the group that they are Marek too. | — |
+| — | Shipped | [Duplicate an expense](#duplicate-an-expense) | Touch and hold an expense; the form opens carrying everything over. | The payer is the one field left empty, so Save stays disabled until it is answered — a whole round can't be logged against the wrong person in one tap. | — |
+| — | Shipped | [Share a summary](#share-a-summary) | A `ShareLink` over generated text: who owes whom, the total, the log. | Pure string building. `GroupSummary` owns none of its words; the app passes localized strings in, so DutchKit needs no resource bundle. | — |
+| — | Shipped | [Your standing on the group list](#your-standing-on-the-group-list) | Each row leads with what you owe or are owed rather than the group's total spent. | Reads the identity the detail screen already writes. The word sequence came off the row at the same time. | — |
+| — | Shipped | [App Intents and Shortcuts](#app-intents-and-shortcuts) | New Expense, Add Expense and Check Balance, from Siri, Spotlight and the Action button. | Who paid is the device's identity, never a parameter. This is what moved both stores into the app group. | — |
+| — | Shipped | [Spotlight indexing](#spotlight-indexing) | Groups findable by name or word sequence from the Home Screen. | Groups only, never expenses. The whole set is rewritten on every change, triggered by saves *and* remote changes — neither is a superset of the other. | — |
+| — | Shipped | [The first-feedback batch](#the-first-feedback-batch) | Five fixes from one Reddit weekend: Undo on settle-ups, an optional title, the cursor in the amount, a searchable currency picker, Add Expense in the bottom bar. | Only the Undo was a defect — reversing a settlement previously meant a red **Delete** on a list where deleting destroys an expense. | — |
+| — | Shipped | [Open the last group on launch](#open-the-last-group-on-launch) | An optional setting; a cold launch reopens the group you were in. | Cold launch only, from `scene(_:willConnectTo:)`. A foreground restore would make it impossible to stay on the group list across a backgrounding. | — |
+| — | Shipped | [The empty Members section](#the-empty-members-section-said-the-same-thing-three-times) | Dropped the grey placeholder row that repeated what the button beneath it already said. | The header stayed a noun: a verb there is announced by VoiceOver immediately before the button repeating it. Whether a new group should be one empty state rather than three is still open. | — |
+| — | Shipped | [Reduce Motion](#reduce-motion) | `accessibilityReduceMotion` honoured across all nine content transitions. | One helper, `motionContentTransition(_:)`, so `grep` answers "does everything honour it" in a line. Value animations deliberately stayed. | App Store listing doesn't claim it yet — metadata, not a build |
+| — | Shipped | [Tip, tax and service charge](#tip-tax-and-service-charge) | One percentage added on top of the entered amount, applied before the split. | Multiplies the figure as typed, before any conversion, so the bill is rounded exactly once and a split still adds back up. Capped at 100% for the typo, not the tipper. | Nothing is stored, so a tip can't be edited afterwards |
+| 7 | Not started | [Member avatars from SF Symbols](#7-member-avatars-from-sf-symbols) | A glyph per member, from a curated set of system symbols. | Symbols ship with the OS, so a full set costs one optional String and nothing in the bundle. | Model change; list must be pinned to symbols that exist at iOS 17 |
+| 8 | Not started | [Home screen widget](#8-home-screen-widget) | "You owe €120 · green-moon-tea", read from the same store. | The expensive half is already done — the stores and `ExpenseDefaults` live in the app group. Depends on **Who am I**. | ~200 KB extension binary |
+| 10 | Not started | [Categories](#10-categories) | An optional SF Symbol name on `Expense`, grouping the log. | Same trick as the avatars; nothing in the bundle. | Model change |
+| 11 | Not started | [Archive a group](#11-archive-a-group) | Trips end and the list never shrinks; this shrinks it. | One optional Date and a filtered `@FetchRequest`. | Model change |
+| 12 | Not started | [Exact amounts in a split](#12-exact-amounts-in-a-split) | Enter what each person owes when the receipt already says. Fixed rows come off the top; the remainder divides among the rest. | The hardest control in the app — it needs a running remainder on screen and a decided answer for when the fixed amounts overshoot. Asked for directly, twice. | Model change; do it in one version 7 with **16** and **21** |
+| 16 | Not started | [Several people paid](#16-several-people-paid) | Many payers on one expense, not one. | Reaches `paidBy` in the model *and* `payer: Participant.ID` in the calculator. The workaround — one expense per payer — is exactly correct, so this buys tidiness, not capability. | Model change **and** the calculator contract; sits behind **12** |
+| 23 | Not started | [Settle part of a debt](#23-settle-part-of-a-debt) | Enter an amount when marking a transfer paid, instead of clearing all of it. | `GroupStore.recordPayment` already takes an arbitrary `Money`; the limitation is one line in `TransferRow`. It records a payment, never a plan — the transfer list is recomputed from balances and can re-pair. | None. No model change, no CloudKit promote |
+| 19 | Not started | [Prefill the title from where you are](#19-prefill-the-title-from-where-you-are) | A **Nearby** button offering the cafés and restaurants within a hundred metres as the title. | `MKLocalSearch`; MapKit is system. A button and never a prefill, which answers the permission timing and keeps the title optional at once. Must degrade quietly when roaming is off. | A location permission prompt, at the worst possible moment |
+| 20 | Not started | [Prefill the currency from the country you are in](#20-prefill-the-currency-from-the-country-you-are-in) | The expense form defaults to the local currency. | `Locale(identifier: "und_PL").currency` — no embedded table, the mapping is already in Foundation. The trap is carrying the previous country's *rate* across. | Rides on **19**: `Locale.current.region` is the region setting, not where you are |
+| 21 | Not started | [Location on an expense](#21-location-on-an-expense) | Latitude, longitude and the chosen name, stored on the expense. | Group the log by place — a charts screen is in **Not planned** for a reason that applies here unchanged. | Model change (pair with **12**/**16**); a shared location doesn't come back out, so it needs **19**'s explicit tap, plus a privacy-label and privacy-page line |
+| 22 | Not started | [iPad and Mac](#22-ipad-and-mac) | "Designed for iPad" is a checkbox; native iPad, Catalyst and macOS are real work. | Sync needs nothing — CloudKit is per Apple Account. Two things bite: the app-group identifier is spelled differently on macOS, and share acceptance is a different method again. Both fail silently. | 432 KB for native iPad, being a saving already taken |
+| 24 | Not started | [An iMessage app](#24-an-imessage-app) | Assign a group to a group chat and manage its expenses inside Messages. | A target in this bundle, not a second app. The app group and `Intents/` already pay for most of it. May be worth more as a fix for the QR join dead-end than as a way to enter expenses. | App size — a second binary, plausibly past 2 MB with the widget. And whether an extension's writes export before the host app next launches is unverified |
+| 14 | Not started | [Measure contrast, then claim it or fix it](#14-measure-contrast-then-claim-it-or-fix-it) | The balance red and green are roughly 3.3:1 on white — probably passing as bold headline text, unverified. | Measure with a checker in both appearances. If it fails, darken the amount text specifically, not the palette. | None; it needs measuring, not arguing about |
+| — | Not planned | [Receipt photos](#not-planned) | | Breaks all three constraints at once — CloudKit assets, sync weight, storage, and an image pipeline. | — |
+| — | Not planned | [Live exchange rates](#not-planned) | | Rates are frozen at entry deliberately; fetching them adds a network dependency and a cache in order to reintroduce the drift that decision removed. | — |
+| — | Not planned | [A charts tab](#not-planned) | | Swift Charts is system-provided, so technically free — and nobody opens it twice for a group with eleven expenses in it. | — |
+| — | Not planned | [An expense with no group](#not-planned) | | The need is real, the shape isn't. Answered instead by a **"Split with…"** fast path that makes a two-person group in one step. | — |
+| — | Not planned | [A backend, accounts, or login](#not-planned) | | The absence of one is the design. | — |
+
+---
+
 ## Shipped
 
 **The base:**
@@ -616,6 +665,73 @@ already makes the second one cheap through **Duplicate**. So this buys tidiness
 in the expense log rather than a capability, which puts it behind **12**, whose
 per-person amount control is the same shape of UI on the other side of the bill.
 
+### 23. Settle part of a debt
+
+Asked for by mail on 2026-08-29, in one sentence: *A owes B $1000, and B wants
+to pay it in five instalments of $200.* **Mark Paid** writes the whole transfer
+or nothing.
+
+**The store has always been able to do this.** `GroupStore.recordPayment` takes
+an arbitrary `Money` and writes an ordinary expense — paid by the person
+settling, split among the person being paid, flagged `isReimbursement` so it
+stays out of Total Spent. Nothing in it compares the amount to the debt. The
+limitation is a single line in `TransferRow`, where the button hands the whole
+of `transfer.amount` to its action. So this is a control and a sheet: no model
+version, no CloudKit promote, no new attribute. That makes it the cheapest entry
+in this section and the only one a user has asked for in as many words, which
+puts it in front of **12** and **16** despite arriving after them.
+
+Undo arrives free. A partial payment is a payment row like any other, so the
+swipe action added in the first-feedback batch backs each of the five out
+individually.
+
+**It records a payment; it does not create a plan** — and the request is phrased
+the other way round, so this is the part to settle before any of it is built.
+`SettlementCalculator.transfers(settling:)` is greedy and recomputed from
+balances on every render: largest creditor against largest debtor, names
+breaking ties. It cannot remember that a row was half paid, because there are no
+rows to remember.
+
+With two people that is invisible — 1000 becomes 800 and the list says what the
+user expects. With two on each side it is not. Balances of A −500, D −300,
+B +500, C +300 read as *A→B 500* and *D→C 300*; A pays B 200, the four remaining
+balances are 300 apiece, and the tie breaks by name into something that can pair
+A with C and D with B. Every figure is correct and the pairing has changed: the
+row somebody was halfway through paying is gone.
+
+Keeping it would mean making the transfer list durable state — recording that
+*this* debt is being paid down, alongside the balances that already say so in a
+form which cannot contradict itself. That is a second source of truth for one
+fact, and the first time the two disagreed the balances would be right while the
+plan would be what the user was reading. So the feature is *record what was
+actually handed over*. Five payments of $200 do clear the debt; the app simply
+never narrates them as instalments.
+
+**The control has to be visible, and the full payment has to stay one tap.**
+`TransferRow` already carries the reasoning for the first half — a button rather
+than a swipe action, because "hiding it behind a gesture with no affordance
+means most people never find it", which is as true of a long press. The second
+half is the common case and the thing the screen exists for. So the button keeps
+clearing the whole transfer and the alternative hangs off the amount instead. A
+`Menu` on the figure is the current guess and not a decision; it is the only
+part of this still open.
+
+**Overpaying is the one question the precedents disagree about.** The tip cap is
+capped for the typo rather than the tipper, which argues for clamping the field
+to the suggested amount. But handing over 1200 against a debt of 1000 and taking
+change is ordinary behaviour at a table, and the maths needs no help with it —
+the recipient owes 200 afterwards and the next render says so. Clamping wins on
+the reading that a figure above the suggestion is more often a slipped decimal
+than an intention, and that the way to overpay is to overpay, in cash, and let
+the app describe what is left. The field prefills full and selected, for the
+inverse of the reason **Duplicate** leaves the payer empty: there the empty
+field is the one that must be answered deliberately, and here the prefilled one
+is the entire point of the sheet.
+
+*Cost: no model change and no CloudKit promote. A sheet, a decimal field and a
+handful of strings in both languages — a few KB of `__text`, unmeasured until it
+is built.*
+
 ---
 
 ## Waiting on a decision, not on space
@@ -789,6 +905,87 @@ if this ever goes past the checkbox:
 
 *Cost: 432 KB for iPad, being the reverse of a saving already taken and already
 measured. Zero on top of that for "Designed for iPad". No model change.*
+
+---
+
+## Wanted, and the first one that costs real space
+
+The section above exists because four features were assumed to be gated by the
+size budget and measured not to be. This one is why that heading is worth
+keeping: it is the first request on this page whose honest answer is *yes, and
+it is the largest thing here in bytes.*
+
+### 24. An iMessage app
+
+Asked for as: assign a group to a group chat, and manage its expenses without
+leaving Messages — which is where the conversation about the dinner already is.
+
+**It is a target in this project, not a second app.** A Messages extension ships
+inside the app bundle, on the same submission, under the same bundle ID; there
+is no separate listing and no second product to maintain. (Apple also allows a
+standalone Messages-only app with no host at all. That exists for sticker packs
+and is not this.) Checked on 2026-08-29, because the framework's future is a
+reasonable thing to doubt: nothing is deprecated and `MSMessagesAppViewController`
+is current. What has happened is de-emphasis — the app drawer moved behind the
+"+" button — so *still supported* is settled and *still findable* is not.
+
+**Two expensive things are already paid for**, both bought for the widget and
+both serving this unchanged. Both persistent stores and `ExpenseDefaults` live
+in `group.net.smigi.Dutch`, which is the retrofit that would have cost real data
+to do later. And `Intents/` was kept self-contained on the stated grounds that
+it is the part a second front end reuses verbatim — this is that second front
+end. `IntentWriter` already holds the policy for recording an expense with no
+form to apply it, and `GroupLookup` already fetches a group imperatively for a
+caller with no view to hang a `@FetchRequest` on. Both are precisely what a
+Messages UI needs.
+
+**The first experiment decides whether the feature exists**, and it is not a UI
+question. `NSPersistentCloudKitContainer` exports off persistent history. If the
+extension writes through a plain container, the export may not happen until the
+host app next launches — an expense added from Messages would sit invisible to
+the rest of the group until somebody opened Dutch, which is the one outcome this
+feature cannot have. Giving the extension a mirroring container of its own is
+the alternative, and means two of them over one store. Which holds is not
+guessable from the API surface and has to be measured on two devices, before any
+of the UI. Note its shape: it fails silently and it reads as a CloudKit problem,
+which is the same trap as the `UIBackgroundModes` key.
+
+**A chat maps to a group on this device only.** `MSConversation` offers
+`remoteParticipantIdentifiers` and `localParticipantIdentifier`, opaque UUIDs
+scoped to one app on one device and explicitly not identities — so no roster can
+be built from the chat and no participant matched to a `Person`. Nothing here
+needs that. *This chat is green-moon-tea* is a fact about the device, which is
+where `ExpenseDefaults` already keeps who you are and which group you last
+opened. That the mapping doesn't follow you to another device costs nothing in
+an iPhone-only app.
+
+**It may be worth more as a way in than as a way to spend.** A join QR scanned
+by somebody without Dutch installed is a dead end — Apple's page offers no route
+to the App Store, which is the whole reason `ShareGroupView` carries a second
+collapsed App Store code. An `MSMessage` bubble is Apple's own answer to that
+case: sent to someone who doesn't have the app, the bubble offers it. And
+sending an invitation into the group chat is the remote-case equivalent of
+holding a QR code up at the table, which is exactly the case the QR structurally
+cannot serve. It wants confirming on a current OS before it is relied on, but it
+closes a gap rather than saving taps.
+
+**What it costs is a second binary.** An extension is its own Mach-O with its
+own view code and its own copy of DutchKit; it cannot share the app's. The app
+is 1644 KB, this page already calls 2 MB close-run, and the widget is budgeted
+at a couple hundred KB on top of that. The two extensions together plausibly
+take Dutch past 2 MB for the first time. That is well inside the 3 MB ceiling,
+so it is a trade rather than a refusal — but it is the largest single cost on
+this page, and it wants archiving after the first screen rather than after the
+last.
+
+The discipline that keeps it affordable is the one `AddExpenseIntent` already
+found: don't rebuild the app inside a bubble. The compact presentation shows the
+standing and one action, and anything more opens Dutch. A second front end is
+also a second set of strings in both languages, for as long as the app exists.
+
+*Cost: unmeasured, and the largest on this page — a second binary, plus a
+`Localizable.xcstrings` that grows with every screen the extension draws. No
+model change.*
 
 ---
 
